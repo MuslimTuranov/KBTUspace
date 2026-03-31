@@ -5,8 +5,10 @@ import (
 	"os"
 
 	"kbtuspace-backend/internal/auth"
+	"kbtuspace-backend/internal/events"
 	"kbtuspace-backend/internal/middleware"
 	"kbtuspace-backend/internal/models"
+	"kbtuspace-backend/internal/posts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -36,6 +38,14 @@ func main() {
 	authService := auth.NewService(authRepo)
 	authHandler := auth.NewHandler(authService)
 
+	postRepo := posts.NewRepository(db)
+	postService := posts.NewService(postRepo)
+	postHandler := posts.NewHandler(postService)
+
+	eventRepo := events.NewRepository(db)
+	eventService := events.NewService(eventRepo)
+	eventHandler := events.NewHandler(eventService)
+
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{"message": "pong", "status": "UniHub API is running!"})
 	})
@@ -62,16 +72,21 @@ func main() {
 				})
 			})
 
+			protected.POST("/posts", postHandler.Create)
+			protected.GET("/posts", postHandler.GetAll)
+			protected.GET("/posts/:id", postHandler.GetByID)
+			protected.PUT("/posts/:id", postHandler.Update)
+			protected.DELETE("/posts/:id", postHandler.Delete)
+
+			protected.GET("/events", eventHandler.GetAll)
+			protected.GET("/events/:id", eventHandler.GetByID)
+
 			organizerOnly := protected.Group("/events")
 			organizerOnly.Use(middleware.RequireRole("organizer", "admin"))
 			{
-				organizerOnly.POST("/", func(c *gin.Context) {
-					userID, _ := c.Get("userID")
-					c.JSON(201, gin.H{
-						"message":   "Event successfully created!",
-						"author_id": userID,
-					})
-				})
+				organizerOnly.POST("/", eventHandler.Create)
+				organizerOnly.PUT("/:id", eventHandler.Update)
+				organizerOnly.DELETE("/:id", eventHandler.Delete)
 			}
 		}
 	}
