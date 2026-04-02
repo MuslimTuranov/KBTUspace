@@ -2,6 +2,7 @@ package posts
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -108,7 +109,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	err = h.service.Update(id, userID, role, input)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "you can edit only your own post"})
 			return
 		}
@@ -143,7 +144,7 @@ func (h *Handler) Delete(c *gin.Context) {
 
 	err = h.service.Delete(id, userID, role)
 	if err != nil {
-		if err.Error() == "forbidden" {
+		if errors.Is(err, ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "you can delete only your own post"})
 			return
 		}

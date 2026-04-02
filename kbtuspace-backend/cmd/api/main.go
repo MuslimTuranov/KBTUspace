@@ -3,12 +3,14 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"kbtuspace-backend/internal/auth"
 	"kbtuspace-backend/internal/events"
 	"kbtuspace-backend/internal/middleware"
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
+	"kbtuspace-backend/pkg/cache"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -39,11 +41,21 @@ func main() {
 	authHandler := auth.NewHandler(authService)
 
 	postRepo := posts.NewRepository(db)
-	postService := posts.NewService(postRepo)
+	redisURL := os.Getenv("REDIS_URL")
+	if redisURL == "" {
+		redisURL = "redis://localhost:6379"
+	}
+
+	postCache, err := cache.NewRedisCache(redisURL, 10*time.Minute)
+	if err != nil {
+		log.Printf("Redis cache disabled: %v", err)
+	}
+
+	postService := posts.NewService(postRepo, postCache)
 	postHandler := posts.NewHandler(postService)
 
 	eventRepo := events.NewRepository(db)
-	eventService := events.NewService(eventRepo)
+	eventService := events.NewService(eventRepo, postCache)
 	eventHandler := events.NewHandler(eventService)
 
 	router.GET("/ping", func(c *gin.Context) {
@@ -80,6 +92,7 @@ func main() {
 
 			protected.GET("/events", eventHandler.GetAll)
 			protected.GET("/events/:id", eventHandler.GetByID)
+			protected.POST("/events/:id/register", eventHandler.Register)
 
 			organizerOnly := protected.Group("/events")
 			organizerOnly.Use(middleware.RequireRole("organizer", "admin"))
