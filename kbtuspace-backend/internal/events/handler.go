@@ -2,6 +2,7 @@ package events
 
 import (
 	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -127,3 +128,39 @@ func (h *Handler) Delete(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "event deleted successfully"})
 }
+
+func (h *Handler) Register(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	err = h.service.Register(userID, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			return
+		}
+		if errors.Is(err, ErrEventFull) {
+			c.JSON(http.StatusConflict, gin.H{"error": "event is full"})
+			return
+		}
+		if errors.Is(err, ErrAlreadyRegistered) {
+			c.JSON(http.StatusConflict, gin.H{"error": "already registered for this event"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register for event"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "registered for event successfully"})
+}
+

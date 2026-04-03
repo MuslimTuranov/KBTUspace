@@ -1,9 +1,14 @@
 package events
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+
 	"kbtuspace-backend/internal/models"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 )
 
 type Repository struct {
@@ -79,7 +84,7 @@ func (r *Repository) Update(event *models.Post) error {
 		WHERE id = $9 AND event_date IS NOT NULL
 	`
 
-	_, err := r.db.Exec(
+	result, err := r.db.Exec(
 		query,
 		event.FacultyID,
 		event.Title,
@@ -92,11 +97,88 @@ func (r *Repository) Update(event *models.Post) error {
 		event.ID,
 	)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func (r *Repository) Delete(id int) error {
 	query := `DELETE FROM posts WHERE id = $1 AND event_date IS NOT NULL`
-	_, err := r.db.Exec(query, id)
-	return err
+	result, err := r.db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
+
+func (r *Repository) Register(userID int, eventID int) error {
+	tx, err := r.db.BeginTxx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	var capacity int
+	query := `
+		SELECT capacity
+		FROM posts
+		WHERE id = $1 AND event_date IS NOT NULL
+		FOR UPDATE
+	`
+
+	if err := tx.Get(&capacity, query, eventID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	if capacity <= 0 {
+		return ErrEventFull
+	}
+
+	if _, err := tx.Exec(`UPDATE posts SET capacity = capacity - 1 WHERE id = $1`, eventID); err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(
+		`INSERT INTO registrations (user_id, event_id, status) VALUES ($1, $2, 'registered')`,
+		userID,
+		eventID,
+	)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			return ErrAlreadyRegistered
+		}
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
