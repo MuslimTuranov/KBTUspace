@@ -7,4 +7,5 @@ var (
 	ErrAlreadyRegistered = errors.New("already registered")
 	ErrForbidden         = errors.New("forbidden")
 	ErrFacultyRequired   = errors.New("faculty is required")
+	ErrApprovalPending   = errors.New("global content requires admin approval")
 )

@@ -57,7 +57,17 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, post)
+	statusCode := http.StatusCreated
+	message := "Post created successfully"
+	if post.Status == models.ContentStatusPending {
+		statusCode = http.StatusAccepted
+		message = "Global post submitted for admin approval"
+	}
+
+	c.JSON(statusCode, gin.H{
+		"message": message,
+		"post":    post,
+	})
 }
 
 func (h *Handler) GetAll(c *gin.Context) {
@@ -73,7 +83,6 @@ func (h *Handler) GetAll(c *gin.Context) {
 			}
 			facultyID = &id
 		} else {
-			// If no faculty_id provided, get from user context
 			if fid, exists := c.Get("facultyID"); exists {
 				if id, ok := fid.(int); ok {
 					facultyID = &id
@@ -102,7 +111,14 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
-	post, err := h.service.GetByID(id)
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	post, err := h.service.GetByID(id, role)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
@@ -133,7 +149,6 @@ func (h *Handler) Update(c *gin.Context) {
 
 	userID, ok1 := userIDAny.(int)
 	role, ok2 := roleAny.(string)
-
 	if !ok1 || !ok2 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid auth context"})
 		return
@@ -148,8 +163,12 @@ func (h *Handler) Update(c *gin.Context) {
 
 	err = h.service.Update(id, userID, role, facultyID, input)
 	if err != nil {
-		if errors.Is(err, ErrPinForbidden) || errors.Is(err, ErrFacultyRequired) {
+		if errors.Is(err, ErrPinForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		if errors.Is(err, ErrForbidden) {
@@ -179,7 +198,6 @@ func (h *Handler) Delete(c *gin.Context) {
 
 	userID, ok1 := userIDAny.(int)
 	role, ok2 := roleAny.(string)
-
 	if !ok1 || !ok2 {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid auth context"})
 		return
@@ -200,4 +218,69 @@ func (h *Handler) Delete(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Post deleted successfully"})
+}
+
+func (h *Handler) ListPendingGlobal(c *gin.Context) {
+	posts, err := h.service.ListPendingGlobal()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch pending posts"})
+		return
+	}
+
+	if posts == nil {
+		posts = []models.Post{}
+	}
+
+	c.JSON(http.StatusOK, posts)
+}
+
+func (h *Handler) Approve(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
+		return
+	}
+
+	adminIDAny, _ := c.Get("userID")
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.Approve(id, adminID); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global post not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve post"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Post approved successfully"})
+}
+
+func (h *Handler) Reject(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
+		return
+	}
+
+	var input models.RejectContentInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	if err := h.service.Reject(id, input.Reason); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global post not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject post"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Post rejected successfully"})
 }

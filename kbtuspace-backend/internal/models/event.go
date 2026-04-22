@@ -26,6 +26,7 @@ type CreateEventInput struct {
 	EventDate   time.Time `json:"event_date" binding:"required"`
 	Location    string    `json:"location" binding:"required,min=3,max=255"`
 	Capacity    int       `json:"capacity" binding:"required,min=1,max=10000"`
+	Scope       string    `json:"scope" binding:"omitempty,oneof=faculty global"`
 }
 
 type UpdateEventInput struct {
@@ -36,6 +37,7 @@ type UpdateEventInput struct {
 	EventDate   time.Time `json:"event_date" binding:"required"`
 	Location    string    `json:"location" binding:"required,min=3,max=255"`
 	Capacity    int       `json:"capacity" binding:"required,min=1,max=10000"`
+	Scope       string    `json:"scope" binding:"omitempty,oneof=faculty global"`
 }
 
 type EventRegistration struct {

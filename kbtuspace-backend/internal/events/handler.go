@@ -57,7 +57,17 @@ func (h *Handler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, event)
+	statusCode := http.StatusCreated
+	message := "Event created successfully"
+	if event.Status == models.ContentStatusPending {
+		statusCode = http.StatusAccepted
+		message = "Global event submitted for admin approval"
+	}
+
+	c.JSON(statusCode, gin.H{
+		"message": message,
+		"event":   event,
+	})
 }
 
 func (h *Handler) GetAll(c *gin.Context) {
@@ -73,7 +83,6 @@ func (h *Handler) GetAll(c *gin.Context) {
 			}
 			facultyID = &id
 		} else {
-			// If no faculty_id provided, get from user context
 			if fid, exists := c.Get("facultyID"); exists {
 				if id, ok := fid.(int); ok {
 					facultyID = &id
@@ -98,17 +107,24 @@ func (h *Handler) GetAll(c *gin.Context) {
 func (h *Handler) GetByID(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}
 
-	event, err := h.service.GetByID(id)
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	event, err := h.service.GetByID(id, role)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch event"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch event"})
 		return
 	}
 
@@ -118,13 +134,13 @@ func (h *Handler) GetByID(c *gin.Context) {
 func (h *Handler) Update(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}
 
 	var input models.UpdateEventInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
 
@@ -153,20 +169,20 @@ func (h *Handler) Update(c *gin.Context) {
 			return
 		}
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update event"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update event"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "event updated successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Event updated successfully"})
 }
 
 func (h *Handler) Delete(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}
 
@@ -195,14 +211,14 @@ func (h *Handler) Delete(c *gin.Context) {
 			return
 		}
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete event"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "event deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Event deleted successfully"})
 }
 
 func (h *Handler) Register(c *gin.Context) {
@@ -238,4 +254,69 @@ func (h *Handler) Register(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully registered for event"})
+}
+
+func (h *Handler) ListPendingGlobal(c *gin.Context) {
+	events, err := h.service.ListPendingGlobal()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch pending events"})
+		return
+	}
+
+	if events == nil {
+		events = []models.Post{}
+	}
+
+	c.JSON(http.StatusOK, events)
+}
+
+func (h *Handler) Approve(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	adminIDAny, _ := c.Get("userID")
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.Approve(id, adminID); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global event not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve event"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Event approved successfully"})
+}
+
+func (h *Handler) Reject(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	var input models.RejectContentInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	if err := h.service.Reject(id, input.Reason); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global event not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject event"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Event rejected successfully"})
 }

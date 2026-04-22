@@ -18,8 +18,8 @@ func NewRepository(db *sqlx.DB) *Repository {
 
 func (r *Repository) Create(post *models.Post) error {
 	query := `
-		INSERT INTO posts (author_id, faculty_id, title, content, image_url, is_pinned, event_date, location, capacity)
-		VALUES ($1, $2, $3, $4, $5, $6, NULL, NULL, 0)
+		INSERT INTO posts (author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, NULL, 0)
 		RETURNING id, created_at
 	`
 
@@ -31,6 +31,11 @@ func (r *Repository) Create(post *models.Post) error {
 		post.Content,
 		post.ImageURL,
 		post.IsPinned,
+		post.Scope,
+		post.Status,
+		post.ApprovedBy,
+		post.ApprovedAt,
+		post.RejectionReason,
 	).Scan(&post.ID, &post.CreatedAt)
 }
 
@@ -38,30 +43,34 @@ func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
 	posts := []models.Post{}
 
 	baseQuery := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, event_date, location, capacity, created_at
+		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, created_at
 		FROM posts
 		WHERE event_date IS NULL
+		  AND status = 'approved'
 	`
 
 	if facultyID != nil {
-		baseQuery += " AND faculty_id = $1 ORDER BY is_pinned DESC, created_at DESC"
+		baseQuery += " AND (scope = 'global' OR faculty_id = $1) ORDER BY is_pinned DESC, created_at DESC"
 		err := r.db.Select(&posts, baseQuery, *facultyID)
 		return posts, err
 	}
 
-	baseQuery += " ORDER BY is_pinned DESC, created_at DESC"
+	baseQuery += " AND scope = 'global' ORDER BY is_pinned DESC, created_at DESC"
 	err := r.db.Select(&posts, baseQuery)
 	return posts, err
 }
 
-func (r *Repository) GetByID(id int) (*models.Post, error) {
+func (r *Repository) GetByID(id int, includeUnapproved bool) (*models.Post, error) {
 	var post models.Post
 
 	query := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, event_date, location, capacity, created_at
+		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, created_at
 		FROM posts
 		WHERE id = $1 AND event_date IS NULL
 	`
+	if !includeUnapproved {
+		query += " AND status = 'approved'"
+	}
 
 	err := r.db.Get(&post, query, id)
 	if err != nil {
@@ -79,8 +88,8 @@ func (r *Repository) Update(post *models.Post, actorID int, isAdmin bool) error 
 			WHERE id = $1 AND event_date IS NULL
 		), updated AS (
 			UPDATE posts
-			SET faculty_id = $2, title = $3, content = $4, image_url = $5, is_pinned = $6
-			WHERE id = $1 AND event_date IS NULL AND ($7 OR author_id = $8)
+			SET faculty_id = $2, title = $3, content = $4, image_url = $5, is_pinned = $6, scope = $7, status = $8, approved_by = $9, approved_at = $10, rejection_reason = $11
+			WHERE id = $1 AND event_date IS NULL AND ($12 OR author_id = $13)
 			RETURNING 1
 		)
 		SELECT CASE
@@ -100,6 +109,11 @@ func (r *Repository) Update(post *models.Post, actorID int, isAdmin bool) error 
 		post.Content,
 		post.ImageURL,
 		post.IsPinned,
+		post.Scope,
+		post.Status,
+		post.ApprovedBy,
+		post.ApprovedAt,
+		post.RejectionReason,
 		isAdmin,
 		actorID,
 	)
@@ -165,3 +179,61 @@ func (r *Repository) GetAuthorID(id int) (int, error) {
 	return authorID, err
 }
 
+func (r *Repository) ListPendingGlobal() ([]models.Post, error) {
+	posts := []models.Post{}
+	query := `
+		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, created_at
+		FROM posts
+		WHERE event_date IS NULL AND scope = 'global' AND status = 'pending'
+		ORDER BY created_at DESC
+	`
+
+	err := r.db.Select(&posts, query)
+	return posts, err
+}
+
+func (r *Repository) Approve(id int, adminID int) error {
+	query := `
+		UPDATE posts
+		SET status = 'approved', approved_by = $2, approved_at = CURRENT_TIMESTAMP, rejection_reason = NULL
+		WHERE id = $1 AND event_date IS NULL AND scope = 'global' AND status = 'pending'
+	`
+
+	result, err := r.db.Exec(query, id, adminID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}
+
+func (r *Repository) Reject(id int, reason string) error {
+	query := `
+		UPDATE posts
+		SET status = 'rejected', approved_by = NULL, approved_at = NULL, rejection_reason = $2
+		WHERE id = $1 AND event_date IS NULL AND scope = 'global' AND status = 'pending'
+	`
+
+	result, err := r.db.Exec(query, id, reason)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
+}

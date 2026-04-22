@@ -131,6 +131,41 @@ func main() {
 				organizerOnly.PUT("/:id", eventHandler.Update)
 				organizerOnly.DELETE("/:id", eventHandler.Delete)
 			}
+
+			adminOnly := protected.Group("/admin")
+			adminOnly.Use(middleware.RequireRole("admin"))
+			{
+				adminOnly.GET("/moderation/global-content", func(c *gin.Context) {
+					contentType := c.DefaultQuery("type", "all")
+					switch contentType {
+					case "posts":
+						postHandler.ListPendingGlobal(c)
+					case "events":
+						eventHandler.ListPendingGlobal(c)
+					default:
+						posts, postsErr := postService.ListPendingGlobal()
+						events, eventsErr := eventService.ListPendingGlobal()
+						if postsErr != nil || eventsErr != nil {
+							c.JSON(500, gin.H{"error": "Failed to fetch pending global content"})
+							return
+						}
+						if posts == nil {
+							posts = []models.Post{}
+						}
+						if events == nil {
+							events = []models.Post{}
+						}
+						c.JSON(200, gin.H{
+							"posts":  posts,
+							"events": events,
+						})
+					}
+				})
+				adminOnly.PATCH("/posts/:id/approve", postHandler.Approve)
+				adminOnly.PATCH("/posts/:id/reject", postHandler.Reject)
+				adminOnly.PATCH("/events/:id/approve", eventHandler.Approve)
+				adminOnly.PATCH("/events/:id/reject", eventHandler.Reject)
+			}
 		}
 	}
 
