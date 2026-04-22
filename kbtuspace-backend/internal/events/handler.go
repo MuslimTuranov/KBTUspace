@@ -22,20 +22,38 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(c *gin.Context) {
 	var input models.CreateEventInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
 
 	userIDAny, _ := c.Get("userID")
 	userID, ok := userIDAny.(int)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
-	event, err := h.service.Create(userID, input)
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	var facultyID *int
+	if facultyIDAny, exists := c.Get("facultyID"); exists {
+		if value, ok := facultyIDAny.(int); ok {
+			facultyID = &value
+		}
+	}
+
+	event, err := h.service.Create(userID, role, facultyID, input)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create event"})
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
 		return
 	}
 
@@ -44,20 +62,34 @@ func (h *Handler) Create(c *gin.Context) {
 
 func (h *Handler) GetAll(c *gin.Context) {
 	var facultyID *int
+	globalFeed := c.DefaultQuery("global", "false") == "true"
 
-	if value := c.Query("faculty_id"); value != "" {
-		id, err := strconv.Atoi(value)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid faculty_id"})
-			return
+	if !globalFeed {
+		if value := c.Query("faculty_id"); value != "" {
+			id, err := strconv.Atoi(value)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid faculty_id"})
+				return
+			}
+			facultyID = &id
+		} else {
+			// If no faculty_id provided, get from user context
+			if fid, exists := c.Get("facultyID"); exists {
+				if id, ok := fid.(int); ok {
+					facultyID = &id
+				}
+			}
 		}
-		facultyID = &id
 	}
 
 	events, err := h.service.GetAll(facultyID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch events"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events"})
 		return
+	}
+
+	if events == nil {
+		events = []models.Post{}
 	}
 
 	c.JSON(http.StatusOK, events)
@@ -96,8 +128,30 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
-	err = h.service.Update(id, input)
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	var facultyID *int
+	if facultyIDAny, exists := c.Get("facultyID"); exists {
+		if value, ok := facultyIDAny.(int); ok {
+			facultyID = &value
+		}
+	}
+
+	err = h.service.Update(id, role, facultyID, input)
 	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only manage events in your faculty"})
+			return
+		}
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
 			return
@@ -116,8 +170,30 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
-	err = h.service.Delete(id)
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	var facultyID *int
+	if facultyIDAny, exists := c.Get("facultyID"); exists {
+		if value, ok := facultyIDAny.(int); ok {
+			facultyID = &value
+		}
+	}
+
+	err = h.service.Delete(id, role, facultyID)
 	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only manage events in your faculty"})
+			return
+		}
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
 			return
@@ -132,35 +208,34 @@ func (h *Handler) Delete(c *gin.Context) {
 func (h *Handler) Register(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
 		return
 	}
 
 	userIDAny, _ := c.Get("userID")
 	userID, ok := userIDAny.(int)
 	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user id"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
 	err = h.service.Register(userID, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "event not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
 		}
 		if errors.Is(err, ErrEventFull) {
-			c.JSON(http.StatusConflict, gin.H{"error": "event is full"})
+			c.JSON(http.StatusConflict, gin.H{"error": "Event is full"})
 			return
 		}
 		if errors.Is(err, ErrAlreadyRegistered) {
-			c.JSON(http.StatusConflict, gin.H{"error": "already registered for this event"})
+			c.JSON(http.StatusConflict, gin.H{"error": "Already registered for this event"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to register for event"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register for event"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{"message": "registered for event successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully registered for event"})
 }
-

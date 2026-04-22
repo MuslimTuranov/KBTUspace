@@ -3,7 +3,8 @@ package models
 import (
 	"fmt"
 	"log"
-	"os"
+
+	"kbtuspace-backend/pkg/config"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -12,14 +13,14 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func InitDB() (*sqlx.DB, error) {
+func InitDB(cfg *config.Config) (*sqlx.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_SSLMODE"),
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBUser,
+		cfg.DBPass,
+		cfg.DBName,
+		cfg.DBSSLMode,
 	)
 
 	db, err := sqlx.Connect("postgres", dsn)
@@ -32,12 +33,12 @@ func InitDB() (*sqlx.DB, error) {
 	}
 
 	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_NAME"),
-		os.Getenv("DB_SSLMODE"),
+		cfg.DBUser,
+		cfg.DBPass,
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBName,
+		cfg.DBSSLMode,
 	)
 
 	m, err := migrate.New("file://migrations", dbURL)

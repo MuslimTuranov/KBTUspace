@@ -2,32 +2,48 @@ package jwt
 
 import (
 	"errors"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func GenerateToken(userID int, role string, facultyID *int) (string, error) {
-	secretKey := []byte(os.Getenv("JWT_SECRET"))
+var (
+	ErrInvalidSigningMethod = errors.New("invalid signing method")
+	ErrInvalidToken         = errors.New("invalid token")
+	ErrExpiredToken         = errors.New("token has expired")
+)
 
+const (
+	TokenExpireDuration = 72 * time.Hour
+)
+
+func GenerateToken(userID int, role string, facultyID *int, secretKey []byte) (string, error) {
+	if len(secretKey) < 32 {
+		return "", errors.New("secret key must be at least 32 bytes")
+	}
+
+	now := time.Now()
 	claims := jwt.MapClaims{
 		"user_id":    userID,
 		"role":       role,
 		"faculty_id": facultyID,
-		"exp":        time.Now().Add(time.Hour * 72).Unix(),
+		"exp":        now.Add(TokenExpireDuration).Unix(),
+		"iat":        now.Unix(),
+		"nbf":        now.Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secretKey)
 }
 
-func ParseToken(tokenString string) (jwt.MapClaims, error) {
-	secretKey := []byte(os.Getenv("JWT_SECRET"))
+func ParseToken(tokenString string, secretKey []byte) (jwt.MapClaims, error) {
+	if len(secretKey) < 32 {
+		return nil, errors.New("secret key must be at least 32 bytes")
+	}
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("unexpected signing method")
+			return nil, ErrInvalidSigningMethod
 		}
 		return secretKey, nil
 	})
@@ -36,9 +52,17 @@ func ParseToken(tokenString string) (jwt.MapClaims, error) {
 		return nil, err
 	}
 
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		return claims, nil
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, ErrInvalidToken
 	}
 
-	return nil, errors.New("invalid token")
+	// Check if token has expired
+	if exp, ok := claims["exp"].(float64); ok {
+		if time.Now().Unix() > int64(exp) {
+			return nil, ErrExpiredToken
+		}
+	}
+
+	return claims, nil
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"log"
-	"os"
+	"context"
+	"log/slog"
 	"time"
 
 	"kbtuspace-backend/internal/auth"
@@ -11,89 +11,119 @@ import (
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
 	"kbtuspace-backend/pkg/cache"
+	"kbtuspace-backend/pkg/config"
+	"kbtuspace-backend/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+	// Load .env file
+	_ = godotenv.Load()
+
+	// Initialize logger
+	logger.Init()
+
+	// Load config
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("Failed to load config", slog.Any("error", err))
+		return
 	}
 
-	db, err := models.InitDB()
+	ctx := context.Background()
+
+	// Connect to database
+	db, err := models.InitDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to DB: %v", err)
+		slog.ErrorContext(ctx, "Failed to connect to database", slog.Any("error", err))
+		return
 	}
 	defer db.Close()
 
-	log.Println("Successfully connected to Database!")
+	slog.InfoContext(ctx, "Connected to database")
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+	// Initialize Redis cache
+	cacheClient, err := cache.NewRedisCache(cfg.RedisURL, 10*time.Minute)
+	if err != nil {
+		slog.InfoContext(ctx, "Redis cache disabled", slog.Any("error", err))
+		cacheClient = nil
+	} else {
+		slog.InfoContext(ctx, "Redis cache initialized")
 	}
 
-	router := gin.Default()
+	// Setup Gin router
+	if cfg.Environment == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 
+	router := gin.New()
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(middleware.CORSMiddleware())
+
+	// Initialize services and handlers
 	authRepo := auth.NewRepository(db)
-	authService := auth.NewService(authRepo)
+	authService := auth.NewService(authRepo, []byte(cfg.JWTSecret))
 	authHandler := auth.NewHandler(authService)
 
 	postRepo := posts.NewRepository(db)
-	redisURL := os.Getenv("REDIS_URL")
-	if redisURL == "" {
-		redisURL = "redis://localhost:6379"
-	}
-
-	postCache, err := cache.NewRedisCache(redisURL, 10*time.Minute)
-	if err != nil {
-		log.Printf("Redis cache disabled: %v", err)
-	}
-
-	postService := posts.NewService(postRepo, postCache)
+	postService := posts.NewService(postRepo, cacheClient)
 	postHandler := posts.NewHandler(postService)
 
 	eventRepo := events.NewRepository(db)
-	eventService := events.NewService(eventRepo, postCache)
+	eventService := events.NewService(eventRepo, cacheClient)
 	eventHandler := events.NewHandler(eventService)
 
+	// Health check endpoint
 	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{"message": "pong", "status": "UniHub API is running!"})
+		c.JSON(200, gin.H{
+			"message": "pong",
+			"status":  "UniHub API is running",
+		})
 	})
 
+	// API routes
 	api := router.Group("/api/v1")
 	{
+		// Auth routes (public)
 		authGroup := api.Group("/auth")
 		{
 			authGroup.POST("/register", authHandler.Register)
 			authGroup.POST("/login", authHandler.Login)
 		}
 
+		// Protected routes
 		protected := api.Group("/")
-		protected.Use(middleware.RequireAuth())
+		protected.Use(middleware.RequireAuth([]byte(cfg.JWTSecret)))
 		{
+			// Profile
 			protected.GET("/profile", func(c *gin.Context) {
 				userID, _ := c.Get("userID")
 				role, _ := c.Get("role")
+				facultyID, _ := c.Get("facultyID")
 
 				c.JSON(200, gin.H{
-					"message": "Welcome to your profile",
-					"user_id": userID,
-					"role":    role,
+					"user_id":    userID,
+					"role":       role,
+					"faculty_id": facultyID,
 				})
 			})
 
+			// Posts
 			protected.POST("/posts", postHandler.Create)
 			protected.GET("/posts", postHandler.GetAll)
 			protected.GET("/posts/:id", postHandler.GetByID)
 			protected.PUT("/posts/:id", postHandler.Update)
 			protected.DELETE("/posts/:id", postHandler.Delete)
 
+			// Events
 			protected.GET("/events", eventHandler.GetAll)
 			protected.GET("/events/:id", eventHandler.GetByID)
 			protected.POST("/events/:id/register", eventHandler.Register)
 
+			// Organizer-only routes
 			organizerOnly := protected.Group("/events")
 			organizerOnly.Use(middleware.RequireRole("organizer", "admin"))
 			{
@@ -104,8 +134,10 @@ func main() {
 		}
 	}
 
-	log.Printf("Starting server on port %s...", port)
-	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+	// Start server
+	addr := ":" + cfg.Port
+	slog.InfoContext(ctx, "Starting server", slog.String("address", addr))
+	if err := router.Run(addr); err != nil {
+		slog.ErrorContext(ctx, "Failed to start server", slog.Any("error", err))
 	}
 }

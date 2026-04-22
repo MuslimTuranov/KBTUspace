@@ -77,15 +77,30 @@ func (r *Repository) GetByID(id int) (*models.Post, error) {
 	return &event, nil
 }
 
-func (r *Repository) Update(event *models.Post) error {
+func (r *Repository) Update(event *models.Post, isAdmin bool, actorFacultyID *int) error {
 	query := `
-		UPDATE posts
-		SET faculty_id = $1, title = $2, content = $3, image_url = $4, is_pinned = $5, event_date = $6, location = $7, capacity = $8
-		WHERE id = $9 AND event_date IS NOT NULL
+		WITH target AS (
+			SELECT 1
+			FROM posts
+			WHERE id = $1 AND event_date IS NOT NULL
+		), updated AS (
+			UPDATE posts
+			SET faculty_id = $2, title = $3, content = $4, image_url = $5, is_pinned = $6, event_date = $7, location = $8, capacity = $9
+			WHERE id = $1 AND event_date IS NOT NULL AND ($10 OR faculty_id = $11)
+			RETURNING 1
+		)
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM updated) THEN 'updated'
+			WHEN EXISTS (SELECT 1 FROM target) THEN 'forbidden'
+			ELSE 'not_found'
+		END
 	`
 
-	result, err := r.db.Exec(
+	var status string
+	err := r.db.Get(
+		&status,
 		query,
+		event.ID,
 		event.FacultyID,
 		event.Title,
 		event.Content,
@@ -94,40 +109,55 @@ func (r *Repository) Update(event *models.Post) error {
 		event.EventDate,
 		event.Location,
 		event.Capacity,
-		event.ID,
+		isAdmin,
+		actorFacultyID,
 	)
-
 	if err != nil {
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	switch status {
+	case "updated":
+		return nil
+	case "forbidden":
+		return ErrForbidden
+	default:
 		return sql.ErrNoRows
 	}
-
-	return nil
 }
 
-func (r *Repository) Delete(id int) error {
-	query := `DELETE FROM posts WHERE id = $1 AND event_date IS NOT NULL`
-	result, err := r.db.Exec(query, id)
+func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
+	query := `
+		WITH target AS (
+			SELECT 1
+			FROM posts
+			WHERE id = $1 AND event_date IS NOT NULL
+		), deleted AS (
+			DELETE FROM posts
+			WHERE id = $1 AND event_date IS NOT NULL AND ($2 OR faculty_id = $3)
+			RETURNING 1
+		)
+		SELECT CASE
+			WHEN EXISTS (SELECT 1 FROM deleted) THEN 'deleted'
+			WHEN EXISTS (SELECT 1 FROM target) THEN 'forbidden'
+			ELSE 'not_found'
+		END
+	`
+
+	var status string
+	err := r.db.Get(&status, query, id, isAdmin, actorFacultyID)
 	if err != nil {
 		return err
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	switch status {
+	case "deleted":
+		return nil
+	case "forbidden":
+		return ErrForbidden
+	default:
 		return sql.ErrNoRows
 	}
-
-	return nil
 }
 
 func (r *Repository) Register(userID int, eventID int) error {
@@ -181,4 +211,3 @@ func (r *Repository) Register(userID int, eventID int) error {
 
 	return nil
 }
-

@@ -2,5 +2,8 @@ package posts
 
 import "errors"
 
-var ErrForbidden = errors.New("forbidden")
-
+var (
+	ErrForbidden       = errors.New("forbidden")
+	ErrPinForbidden    = errors.New("pinning posts is not allowed for this role")
+	ErrFacultyRequired = errors.New("faculty is required")
+)

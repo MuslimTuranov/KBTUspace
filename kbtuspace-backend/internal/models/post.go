@@ -12,44 +12,22 @@ type Post struct {
 	IsPinned  bool       `db:"is_pinned" json:"is_pinned"`
 	EventDate *time.Time `db:"event_date" json:"event_date,omitempty"`
 	Location  *string    `db:"location" json:"location,omitempty"`
-	Capacity  int        `db:"capacity" json:"capacity"`
+	Capacity  int        `db:"capacity" json:"capacity,omitempty"`
 	CreatedAt time.Time  `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time  `db:"updated_at" json:"updated_at"`
 }
 
 type CreatePostInput struct {
-	FacultyID *int    `json:"faculty_id"`
-	Title     string  `json:"title" binding:"required"`
-	Content   string  `json:"content" binding:"required"`
-	ImageURL  *string `json:"image_url"`
-	IsPinned  bool    `json:"is_pinned"`
+	FacultyID *int    `json:"faculty_id,omitempty"`
+	Title     string  `json:"title" binding:"required,min=3,max=255"`
+	Content   string  `json:"content" binding:"required,min=10,max=5000"`
+	ImageURL  *string `json:"image_url" binding:"omitempty,url"`
 }
 
 type UpdatePostInput struct {
-	FacultyID *int    `json:"faculty_id"`
-	Title     string  `json:"title" binding:"required"`
-	Content   string  `json:"content" binding:"required"`
-	ImageURL  *string `json:"image_url"`
+	FacultyID *int    `json:"faculty_id,omitempty"`
+	Title     string  `json:"title" binding:"required,min=3,max=255"`
+	Content   string  `json:"content" binding:"required,min=10,max=5000"`
+	ImageURL  *string `json:"image_url" binding:"omitempty,url"`
 	IsPinned  bool    `json:"is_pinned"`
-}
-
-type CreateEventInput struct {
-	FacultyID *int      `json:"faculty_id"`
-	Title     string    `json:"title" binding:"required"`
-	Content   string    `json:"content" binding:"required"`
-	ImageURL  *string   `json:"image_url"`
-	IsPinned  bool      `json:"is_pinned"`
-	EventDate time.Time `json:"event_date" binding:"required"`
-	Location  string    `json:"location" binding:"required"`
-	Capacity  int       `json:"capacity" binding:"required,min=1"`
-}
-
-type UpdateEventInput struct {
-	FacultyID *int      `json:"faculty_id"`
-	Title     string    `json:"title" binding:"required"`
-	Content   string    `json:"content" binding:"required"`
-	ImageURL  *string   `json:"image_url"`
-	IsPinned  bool      `json:"is_pinned"`
-	EventDate time.Time `json:"event_date" binding:"required"`
-	Location  string    `json:"location" binding:"required"`
-	Capacity  int       `json:"capacity" binding:"required,min=1"`
 }

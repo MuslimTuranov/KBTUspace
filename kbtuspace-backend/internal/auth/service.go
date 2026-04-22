@@ -2,20 +2,29 @@ package auth
 
 import (
 	"errors"
+
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/pkg/hash"
 	"kbtuspace-backend/pkg/jwt"
 )
 
 type Service struct {
-	repo *Repository
+	repo      *Repository
+	jwtSecret []byte
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, jwtSecret []byte) *Service {
+	return &Service{
+		repo:      repo,
+		jwtSecret: jwtSecret,
+	}
 }
 
 func (s *Service) RegisterUser(input models.RegisterInput) error {
+	if len(input.Email) == 0 || len(input.Password) == 0 {
+		return errors.New("email and password are required")
+	}
+
 	hashedPassword, err := hash.HashPassword(input.Password)
 	if err != nil {
 		return err
@@ -31,16 +40,20 @@ func (s *Service) RegisterUser(input models.RegisterInput) error {
 }
 
 func (s *Service) LoginUser(input models.LoginInput) (string, error) {
+	if len(input.Email) == 0 || len(input.Password) == 0 {
+		return "", ErrInvalidCredentials
+	}
+
 	user, err := s.repo.GetUserByEmail(input.Email)
 	if err != nil {
-		return "", errors.New("user not found or invalid credentials")
+		return "", ErrInvalidCredentials
 	}
 
 	if !hash.CheckPasswordHash(input.Password, user.PasswordHash) {
-		return "", errors.New("user not found or invalid credentials")
+		return "", ErrInvalidCredentials
 	}
 
-	token, err := jwt.GenerateToken(user.ID, user.Role, user.FacultyID)
+	token, err := jwt.GenerateToken(user.ID, user.Role, user.FacultyID, s.jwtSecret)
 	if err != nil {
 		return "", err
 	}

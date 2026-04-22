@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 
 	"kbtuspace-backend/internal/models"
@@ -20,12 +21,16 @@ func (h *Handler) Register(c *gin.Context) {
 	var input models.RegisterInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
 
 	if err := h.service.RegisterUser(input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register user: " + err.Error()})
+		if errors.Is(err, ErrDuplicateEmail) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}
 
@@ -36,13 +41,17 @@ func (h *Handler) Login(c *gin.Context) {
 	var input models.LoginInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
 		return
 	}
 
 	token, err := h.service.LoginUser(input)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		if errors.Is(err, ErrInvalidCredentials) || errors.Is(err, ErrUserNotFound) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Login failed"})
 		return
 	}
 

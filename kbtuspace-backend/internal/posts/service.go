@@ -14,6 +14,16 @@ func NewService(repo *Repository, postsCache cache.PostsCache) *Service {
 	return &Service{repo: repo, cache: postsCache}
 }
 
+func resolveFacultyID(role string, actorFacultyID *int, requestedFacultyID *int) (*int, error) {
+	if role == "admin" && requestedFacultyID != nil {
+		return requestedFacultyID, nil
+	}
+	if actorFacultyID == nil || *actorFacultyID <= 0 {
+		return nil, ErrFacultyRequired
+	}
+	return actorFacultyID, nil
+}
+
 func postKey(id int) string {
 	return cache.PostKey(id)
 }
@@ -22,15 +32,18 @@ func postsListKey(facultyID *int) string {
 	return cache.PostsListKey(facultyID)
 }
 
-func (s *Service) Create(authorID int, input models.CreatePostInput) (*models.Post, error) {
+func (s *Service) Create(authorID int, role string, actorFacultyID *int, input models.CreatePostInput) (*models.Post, error) {
+	facultyID, err := resolveFacultyID(role, actorFacultyID, input.FacultyID)
+	if err != nil {
+		return nil, err
+	}
+
 	post := &models.Post{
 		AuthorID:  authorID,
-		FacultyID: input.FacultyID,
+		FacultyID: facultyID,
 		Title:     input.Title,
 		Content:   input.Content,
 		ImageURL:  input.ImageURL,
-		IsPinned:  input.IsPinned,
-		Capacity:  0,
 	}
 
 	if err := s.repo.Create(post); err != nil {
@@ -83,10 +96,19 @@ func (s *Service) GetByID(id int) (*models.Post, error) {
 	return post, nil
 }
 
-func (s *Service) Update(id int, currentUserID int, role string, input models.UpdatePostInput) error {
+func (s *Service) Update(id int, currentUserID int, role string, actorFacultyID *int, input models.UpdatePostInput) error {
+	if input.IsPinned && role == "student" {
+		return ErrPinForbidden
+	}
+
+	facultyID, err := resolveFacultyID(role, actorFacultyID, input.FacultyID)
+	if err != nil {
+		return err
+	}
+
 	post := &models.Post{
 		ID:        id,
-		FacultyID: input.FacultyID,
+		FacultyID: facultyID,
 		Title:     input.Title,
 		Content:   input.Content,
 		ImageURL:  input.ImageURL,
