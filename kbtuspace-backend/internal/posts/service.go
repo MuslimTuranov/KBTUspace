@@ -208,3 +208,23 @@ func (s *Service) Reject(id int, reason string) error {
 
 	return nil
 }
+
+func (s *Service) Pin(id int, role string, actorFacultyID *int, isPinned bool) error {
+	if role != "organizer" && role != "admin" {
+		return ErrPinForbidden
+	}
+	if role != "admin" && (actorFacultyID == nil || *actorFacultyID <= 0) {
+		return ErrFacultyRequired
+	}
+
+	if err := s.repo.Pin(id, isPinned, role == "admin", actorFacultyID); err != nil {
+		return err
+	}
+
+	if s.cache != nil {
+		_ = s.cache.Delete(postKey(id))
+		_ = s.cache.DeletePrefix(cache.PostsListPrefix())
+	}
+
+	return nil
+}

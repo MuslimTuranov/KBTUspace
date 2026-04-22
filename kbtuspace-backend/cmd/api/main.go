@@ -10,6 +10,7 @@ import (
 	"kbtuspace-backend/internal/middleware"
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
+	"kbtuspace-backend/internal/users"
 	"kbtuspace-backend/pkg/cache"
 	"kbtuspace-backend/pkg/config"
 	"kbtuspace-backend/pkg/logger"
@@ -68,6 +69,10 @@ func main() {
 	authService := auth.NewService(authRepo, []byte(cfg.JWTSecret))
 	authHandler := auth.NewHandler(authService)
 
+	userRepo := users.NewRepository(db)
+	userService := users.NewService(userRepo)
+	userHandler := users.NewHandler(userService)
+
 	postRepo := posts.NewRepository(db)
 	postService := posts.NewService(postRepo, cacheClient)
 	postHandler := posts.NewHandler(postService)
@@ -99,17 +104,8 @@ func main() {
 		protected.Use(middleware.RequireAuth([]byte(cfg.JWTSecret)))
 		{
 			// Profile
-			protected.GET("/profile", func(c *gin.Context) {
-				userID, _ := c.Get("userID")
-				role, _ := c.Get("role")
-				facultyID, _ := c.Get("facultyID")
-
-				c.JSON(200, gin.H{
-					"user_id":    userID,
-					"role":       role,
-					"faculty_id": facultyID,
-				})
-			})
+			protected.GET("/profile", userHandler.GetProfile)
+			protected.PUT("/profile", userHandler.UpdateProfile)
 
 			// Posts
 			protected.POST("/posts", postHandler.Create)
@@ -117,6 +113,7 @@ func main() {
 			protected.GET("/posts/:id", postHandler.GetByID)
 			protected.PUT("/posts/:id", postHandler.Update)
 			protected.DELETE("/posts/:id", postHandler.Delete)
+			protected.PATCH("/posts/:id/pin", postHandler.Pin)
 
 			// Events
 			protected.GET("/events", eventHandler.GetAll)
@@ -163,8 +160,11 @@ func main() {
 				})
 				adminOnly.PATCH("/posts/:id/approve", postHandler.Approve)
 				adminOnly.PATCH("/posts/:id/reject", postHandler.Reject)
+				adminOnly.DELETE("/posts/:id", postHandler.AdminDelete)
 				adminOnly.PATCH("/events/:id/approve", eventHandler.Approve)
 				adminOnly.PATCH("/events/:id/reject", eventHandler.Reject)
+				adminOnly.DELETE("/events/:id", eventHandler.AdminDelete)
+				adminOnly.PATCH("/users/:id", userHandler.AdminUpdateUser)
 			}
 		}
 	}

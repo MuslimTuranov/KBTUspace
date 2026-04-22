@@ -284,3 +284,76 @@ func (h *Handler) Reject(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Post rejected successfully"})
 }
+
+func (h *Handler) AdminDelete(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
+		return
+	}
+
+	adminIDAny, _ := c.Get("userID")
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.Delete(id, adminID, "admin"); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete post"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Post deleted successfully"})
+}
+
+func (h *Handler) Pin(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid post ID"})
+		return
+	}
+
+	var input models.PinPostInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		return
+	}
+
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
+	var facultyID *int
+	if facultyIDAny, exists := c.Get("facultyID"); exists {
+		if value, ok := facultyIDAny.(int); ok {
+			facultyID = &value
+		}
+	}
+
+	if err := h.service.Pin(id, role, facultyID, input.IsPinned); err != nil {
+		if errors.Is(err, ErrPinForbidden) || errors.Is(err, ErrInvalidPinScope) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update pin status"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Post pin status updated successfully"})
+}

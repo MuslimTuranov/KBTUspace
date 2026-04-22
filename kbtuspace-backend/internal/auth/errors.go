@@ -8,10 +8,11 @@ import (
 )
 
 var (
-	ErrDuplicateEmail   = errors.New("email already exists")
-	ErrInvalidPassword  = errors.New("invalid password")
-	ErrUserNotFound     = errors.New("user not found")
+	ErrDuplicateEmail     = errors.New("email already exists")
+	ErrInvalidPassword    = errors.New("invalid password")
+	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrUserBanned         = errors.New("user is banned")
 )
 
 // ParseDatabaseError преобразует database ошибки в application ошибки

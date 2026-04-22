@@ -28,6 +28,7 @@ type Post struct {
 	EventDate       *time.Time `db:"event_date" json:"event_date,omitempty"`
 	Location        *string    `db:"location" json:"location,omitempty"`
 	Capacity        int        `db:"capacity" json:"capacity,omitempty"`
+	CurrentCount    int        `db:"current_count" json:"current_count,omitempty"`
 	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time  `db:"updated_at" json:"updated_at"`
 }
@@ -51,4 +52,8 @@ type UpdatePostInput struct {
 
 type RejectContentInput struct {
 	Reason string `json:"reason" binding:"required,min=3,max=1000"`
+}
+
+type PinPostInput struct {
+	IsPinned bool `json:"is_pinned"`
 }

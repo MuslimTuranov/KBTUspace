@@ -16,11 +16,11 @@ func NewRepository(db *sqlx.DB) *Repository {
 
 func (r *Repository) CreateUser(user *models.User) error {
 	query := `
-		INSERT INTO users (email, password_hash, role)
-		VALUES ($1, $2, $3)
-		RETURNING id, created_at`
+		INSERT INTO users (email, password_hash, role, faculty_id, is_banned)
+		VALUES ($1, $2, $3, $4, FALSE)
+		RETURNING id, created_at, updated_at`
 
-	err := r.db.QueryRow(query, user.Email, user.PasswordHash, user.Role).Scan(&user.ID, &user.CreatedAt)
+	err := r.db.QueryRow(query, user.Email, user.PasswordHash, user.Role, user.FacultyID).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
 	if err != nil {
 		return ParseDatabaseError(err)
 	}
@@ -29,7 +29,7 @@ func (r *Repository) CreateUser(user *models.User) error {
 
 func (r *Repository) GetUserByEmail(email string) (*models.User, error) {
 	var user models.User
-	query := `SELECT id, email, password_hash, role, faculty_id, created_at FROM users WHERE email = $1`
+	query := `SELECT id, email, password_hash, role, faculty_id, is_banned, created_at, updated_at FROM users WHERE email = $1`
 
 	err := r.db.Get(&user, query, email)
 	if err != nil {

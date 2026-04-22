@@ -2,6 +2,12 @@ package models
 
 import "time"
 
+const (
+	RegistrationStatusRegistered = "registered"
+	RegistrationStatusCancelled  = "cancelled"
+	RegistrationStatusAttended   = "attended"
+)
+
 type Event struct {
 	ID           int       `db:"id" json:"id"`
 	AuthorID     int       `db:"author_id" json:"author_id"`

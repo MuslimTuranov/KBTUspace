@@ -47,6 +47,10 @@ func (h *Handler) Login(c *gin.Context) {
 
 	token, err := h.service.LoginUser(input)
 	if err != nil {
+		if errors.Is(err, ErrUserBanned) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "User is banned"})
+			return
+		}
 		if errors.Is(err, ErrInvalidCredentials) || errors.Is(err, ErrUserNotFound) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid email or password"})
 			return

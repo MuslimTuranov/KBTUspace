@@ -49,6 +49,10 @@ func (s *Service) LoginUser(input models.LoginInput) (string, error) {
 		return "", ErrInvalidCredentials
 	}
 
+	if user.IsBanned {
+		return "", ErrUserBanned
+	}
+
 	if !hash.CheckPasswordHash(input.Password, user.PasswordHash) {
 		return "", ErrInvalidCredentials
 	}

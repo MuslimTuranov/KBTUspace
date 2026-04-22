@@ -320,3 +320,22 @@ func (h *Handler) Reject(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Event rejected successfully"})
 }
+
+func (h *Handler) AdminDelete(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	if err := h.service.Delete(id, "admin", nil); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Event deleted successfully"})
+}
