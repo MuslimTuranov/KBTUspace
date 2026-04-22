@@ -10,6 +10,7 @@ import (
 	"kbtuspace-backend/internal/middleware"
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
+	"kbtuspace-backend/internal/reports"
 	"kbtuspace-backend/internal/users"
 	"kbtuspace-backend/pkg/cache"
 	"kbtuspace-backend/pkg/config"
@@ -81,6 +82,10 @@ func main() {
 	eventService := events.NewService(eventRepo, cacheClient)
 	eventHandler := events.NewHandler(eventService)
 
+	reportRepo := reports.NewRepository(db)
+	reportService := reports.NewService(reportRepo)
+	reportHandler := reports.NewHandler(reportService)
+
 	// Health check endpoint
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -119,6 +124,7 @@ func main() {
 			protected.GET("/events", eventHandler.GetAll)
 			protected.GET("/events/:id", eventHandler.GetByID)
 			protected.POST("/events/:id/register", eventHandler.Register)
+			protected.POST("/reports", reportHandler.Create)
 
 			// Organizer-only routes
 			organizerOnly := protected.Group("/events")
@@ -158,12 +164,18 @@ func main() {
 						})
 					}
 				})
+
+				adminOnly.GET("/reports", reportHandler.List)
+				adminOnly.PATCH("/reports/:id/close", reportHandler.Close)
+
 				adminOnly.PATCH("/posts/:id/approve", postHandler.Approve)
 				adminOnly.PATCH("/posts/:id/reject", postHandler.Reject)
 				adminOnly.DELETE("/posts/:id", postHandler.AdminDelete)
+
 				adminOnly.PATCH("/events/:id/approve", eventHandler.Approve)
 				adminOnly.PATCH("/events/:id/reject", eventHandler.Reject)
 				adminOnly.DELETE("/events/:id", eventHandler.AdminDelete)
+
 				adminOnly.PATCH("/users/:id", userHandler.AdminUpdateUser)
 			}
 		}
