@@ -18,16 +18,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+
+	_ "kbtuspace-backend/docs"
+
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
+// @title           UniHub API
+// @version         1.0
+// @description     This is the central API for the UniHub university ecosystem.
+// @host            localhost:8080
+// @BasePath        /api/v1
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     Type "Bearer " followed by a space and JWT token.
 func main() {
-	// Load .env file
 	_ = godotenv.Load()
 
-	// Initialize logger
 	logger.Init()
 
-	// Load config
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("Failed to load config", slog.Any("error", err))
@@ -36,7 +47,6 @@ func main() {
 
 	ctx := context.Background()
 
-	// Connect to database
 	db, err := models.InitDB(cfg)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to connect to database", slog.Any("error", err))
@@ -46,7 +56,6 @@ func main() {
 
 	slog.InfoContext(ctx, "Connected to database")
 
-	// Initialize Redis cache
 	cacheClient, err := cache.NewRedisCache(cfg.RedisURL, 10*time.Minute)
 	if err != nil {
 		slog.InfoContext(ctx, "Redis cache disabled", slog.Any("error", err))
@@ -55,7 +64,6 @@ func main() {
 		slog.InfoContext(ctx, "Redis cache initialized")
 	}
 
-	// Setup Gin router
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -65,7 +73,6 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 
-	// Initialize services and handlers
 	authRepo := auth.NewRepository(db)
 	authService := auth.NewService(authRepo, []byte(cfg.JWTSecret))
 	authHandler := auth.NewHandler(authService)
@@ -86,7 +93,15 @@ func main() {
 	reportService := reports.NewService(reportRepo)
 	reportHandler := reports.NewHandler(reportService)
 
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
 	// Health check endpoint
+	// @Summary     Health check
+	// @Description Returns pong if API is running
+	// @Tags        system
+	// @Produce     json
+	// @Success     200 {object} map[string]interface{}
+	// @Router      /ping [get]
 	router.GET("/ping", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "pong",
@@ -94,7 +109,6 @@ func main() {
 		})
 	})
 
-	// API routes
 	api := router.Group("/api/v1")
 	{
 		// Auth routes (public)
@@ -181,7 +195,6 @@ func main() {
 		}
 	}
 
-	// Start server
 	addr := ":" + cfg.Port
 	slog.InfoContext(ctx, "Starting server", slog.String("address", addr))
 	if err := router.Run(addr); err != nil {

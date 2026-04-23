@@ -57,7 +57,6 @@ func ParseToken(tokenString string, secretKey []byte) (jwt.MapClaims, error) {
 		return nil, ErrInvalidToken
 	}
 
-	// Check if token has expired
 	if exp, ok := claims["exp"].(float64); ok {
 		if time.Now().Unix() > int64(exp) {
 			return nil, ErrExpiredToken

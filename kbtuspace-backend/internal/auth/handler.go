@@ -17,6 +17,18 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// Register user
+// @Summary     Register a new user
+// @Description Creates a new student or user
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       input body models.RegisterInput true "Registration info"
+// @Success     201 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     409 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /auth/register [post]
 func (h *Handler) Register(c *gin.Context) {
 	var input models.RegisterInput
 

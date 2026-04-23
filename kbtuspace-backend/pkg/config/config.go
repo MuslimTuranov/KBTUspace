@@ -8,15 +8,15 @@ import (
 )
 
 type Config struct {
-	Port      string
-	DBHost    string
-	DBPort    string
-	DBUser    string
-	DBPass    string
-	DBName    string
-	DBSSLMode string
-	RedisURL  string
-	JWTSecret string
+	Port        string
+	DBHost      string
+	DBPort      string
+	DBUser      string
+	DBPass      string
+	DBName      string
+	DBSSLMode   string
+	RedisURL    string
+	JWTSecret   string
 	Environment string
 }
 
@@ -58,12 +58,10 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("JWT_SECRET must be at least 32 characters (got %d)", len(c.JWTSecret))
 	}
 
-	// Validate port is a number
 	if _, err := strconv.Atoi(c.Port); err != nil {
 		return fmt.Errorf("PORT must be a valid number: %w", err)
 	}
 
-	// Validate environment
 	if c.Environment != "development" && c.Environment != "staging" && c.Environment != "production" {
 		return fmt.Errorf("ENVIRONMENT must be one of: development, staging, production (got %s)", c.Environment)
 	}

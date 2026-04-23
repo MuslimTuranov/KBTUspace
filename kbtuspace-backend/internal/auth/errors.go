@@ -15,17 +15,15 @@ var (
 	ErrUserBanned         = errors.New("user is banned")
 )
 
-// ParseDatabaseError преобразует database ошибки в application ошибки
 func ParseDatabaseError(err error) error {
 	if err == nil {
 		return nil
 	}
 
-	// Проверяем pq ошибки
 	var pgErr *pq.Error
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
-		case "23505": // unique_violation
+		case "23505":
 			if strings.Contains(pgErr.Message, "email") {
 				return ErrDuplicateEmail
 			}
