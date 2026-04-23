@@ -198,6 +198,23 @@ func (s *Service) Register(userID int, eventID int) error {
 	return nil
 }
 
+func (s *Service) CancelRegistration(userID, eventID int) error {
+	if err := s.repo.CancelRegistration(userID, eventID); err != nil {
+		return err
+	}
+
+	if s.cache != nil {
+		_ = s.cache.Delete(eventKey(eventID))
+		_ = s.cache.DeletePrefix(cache.EventsListPrefix())
+	}
+
+	return nil
+}
+
+func (s *Service) MarkAttended(userID, eventID int) error {
+	return s.repo.MarkAttended(userID, eventID)
+}
+
 func (s *Service) ListPendingGlobal() ([]models.Post, error) {
 	return s.repo.ListPendingGlobal()
 }
