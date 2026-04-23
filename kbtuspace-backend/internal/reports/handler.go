@@ -19,6 +19,21 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// CreateReport godoc
+// @Summary     Create report
+// @Description Create a report for a post/event/content
+// @Tags        reports
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       input body models.CreateReportInput true "Report input"
+// @Success     201 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     404 {object} map[string]interface{}
+// @Failure     409 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /reports [post]
 func (h *Handler) Create(c *gin.Context) {
 	var input models.CreateReportInput
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -59,6 +74,16 @@ func (h *Handler) Create(c *gin.Context) {
 	})
 }
 
+// ListReports godoc
+// @Summary     Get reports list
+// @Description Get reports filtered by status
+// @Tags        admin
+// @Produce     json
+// @Security    BearerAuth
+// @Param       status query string false "Report status (pending/closed/rejected)"
+// @Success     200 {array} models.Report
+// @Failure     500 {object} map[string]interface{}
+// @Router      /admin/reports [get]
 func (h *Handler) List(c *gin.Context) {
 	status := c.DefaultQuery("status", models.ReportStatusPending)
 
@@ -75,6 +100,21 @@ func (h *Handler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, reports)
 }
 
+// CloseReport godoc
+// @Summary     Close report
+// @Description Admin closes a report with resolution
+// @Tags        admin
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id path int true "Report ID"
+// @Param       input body models.CloseReportInput true "Close report input"
+// @Success     200 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     404 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /admin/reports/{id}/close [patch]
 func (h *Handler) Close(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

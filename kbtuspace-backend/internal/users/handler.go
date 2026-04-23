@@ -19,6 +19,16 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// GetProfile godoc
+// @Summary     Get current user profile
+// @Description Returns the profile of the authenticated user
+// @Tags        users
+// @Produce     json
+// @Security    BearerAuth
+// @Success     200 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /profile [get]
 func (h *Handler) GetProfile(c *gin.Context) {
 	userIDAny, _ := c.Get("userID")
 	userID, ok := userIDAny.(int)
@@ -36,6 +46,21 @@ func (h *Handler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// UpdateProfile godoc
+// @Summary     Update current user profile
+// @Description Updates the profile of the authenticated user
+// @Tags        users
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       input body models.UpdateProfileInput true "Profile update data"
+// @Success     200 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     404 {object} map[string]interface{}
+// @Failure     409 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /profile [put]
 func (h *Handler) UpdateProfile(c *gin.Context) {
 	userIDAny, _ := c.Get("userID")
 	userID, ok := userIDAny.(int)
@@ -67,6 +92,22 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
+// AdminUpdateUser godoc
+// @Summary     Admin update user
+// @Description Allows admin to update any user's data (role, ban status, etc.)
+// @Tags        admin
+// @Accept      json
+// @Produce     json
+// @Security    BearerAuth
+// @Param       id    path int true "User ID"
+// @Param       input body models.AdminUpdateUserInput true "User update data"
+// @Success     200 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     404 {object} map[string]interface{}
+// @Failure     409 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /admin/users/{id} [patch]
 func (h *Handler) AdminUpdateUser(c *gin.Context) {
 	targetID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {

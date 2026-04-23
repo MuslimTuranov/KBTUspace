@@ -15,6 +15,11 @@ type Repository struct {
 	db *sqlx.DB
 }
 
+type EventAccessMeta struct {
+	AuthorID  int  `db:"author_id"`
+	FacultyID *int `db:"faculty_id"`
+}
+
 func NewRepository(db *sqlx.DB) *Repository {
 	return &Repository{db: db}
 }
@@ -45,7 +50,7 @@ func (r *Repository) Create(event *models.Post) error {
 	).Scan(&event.ID, &event.CreatedAt, &event.UpdatedAt)
 }
 
-func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
+func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) {
 	events := []models.Post{}
 
 	baseQuery := `
@@ -54,6 +59,12 @@ func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
 		WHERE event_date IS NOT NULL
 		  AND status = 'approved'
 	`
+
+	if role == "admin" {
+		baseQuery += " ORDER BY event_date ASC"
+		err := r.db.Select(&events, baseQuery)
+		return events, err
+	}
 
 	if facultyID != nil {
 		baseQuery += " AND (scope = 'global' OR faculty_id = $1) ORDER BY event_date ASC"
@@ -66,7 +77,7 @@ func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
 	return events, err
 }
 
-func (r *Repository) GetByID(id int, includeUnapproved bool) (*models.Post, error) {
+func (r *Repository) GetByID(id int, includeUnapproved bool, actorFacultyID *int) (*models.Post, error) {
 	var event models.Post
 
 	query := `
@@ -75,10 +86,21 @@ func (r *Repository) GetByID(id int, includeUnapproved bool) (*models.Post, erro
 		WHERE id = $1 AND event_date IS NOT NULL
 	`
 	if !includeUnapproved {
-		query += " AND status = 'approved'"
+		query += `
+			AND status = 'approved'
+			AND (
+				scope = 'global'
+				OR (scope = 'faculty' AND $2 IS NOT NULL AND faculty_id = $2)
+			)
+		`
 	}
 
-	err := r.db.Get(&event, query, id)
+	args := []interface{}{id}
+	if !includeUnapproved {
+		args = append(args, actorFacultyID)
+	}
+
+	err := r.db.Get(&event, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -317,6 +339,18 @@ func (r *Repository) MarkAttended(userID, eventID int) error {
 		return ErrNotRegistered
 	}
 	return nil
+}
+
+func (r *Repository) GetEventAccessMeta(eventID int) (*EventAccessMeta, error) {
+	var meta EventAccessMeta
+	if err := r.db.Get(&meta, `
+		SELECT author_id, faculty_id
+		FROM posts
+		WHERE id = $1 AND event_date IS NOT NULL
+	`, eventID); err != nil {
+		return nil, err
+	}
+	return &meta, nil
 }
 
 func (r *Repository) ListPendingGlobal() ([]models.Post, error) {

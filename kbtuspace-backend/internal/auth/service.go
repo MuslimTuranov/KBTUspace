@@ -34,6 +34,7 @@ func (s *Service) RegisterUser(input models.RegisterInput) error {
 		Email:        input.Email,
 		PasswordHash: hashedPassword,
 		Role:         "student",
+		FacultyID:    &input.FacultyID,
 	}
 
 	return s.repo.CreateUser(user)

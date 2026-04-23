@@ -49,8 +49,27 @@ func eventKey(id int) string {
 	return cache.EventKey(id)
 }
 
-func eventsListKey(facultyID *int) string {
+func eventsListKey(facultyID *int, role string) string {
+	if role == "admin" {
+		return cache.EventsListPrefix() + "admin_all"
+	}
 	return cache.EventsListKey(facultyID)
+}
+
+func canAccessEvent(role string, actorFacultyID *int, event *models.Post) bool {
+	if role == "admin" {
+		return true
+	}
+	if event.Status != models.ContentStatusApproved {
+		return false
+	}
+	if event.Scope == models.ContentScopeGlobal {
+		return true
+	}
+	if event.Scope == models.ContentScopeFaculty && actorFacultyID != nil && event.FacultyID != nil {
+		return *actorFacultyID == *event.FacultyID
+	}
+	return false
 }
 
 func (s *Service) Create(authorID int, role string, actorFacultyID *int, input models.CreateEventInput) (*models.Post, error) {
@@ -93,33 +112,35 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	return post, nil
 }
 
-func (s *Service) GetAll(facultyID *int) ([]models.Post, error) {
+func (s *Service) GetAll(facultyID *int, role string) ([]models.Post, error) {
 	if s.cache != nil {
-		if cachedEvents, hit, err := s.cache.GetPosts(eventsListKey(facultyID)); err == nil && hit {
+		if cachedEvents, hit, err := s.cache.GetPosts(eventsListKey(facultyID, role)); err == nil && hit {
 			return cachedEvents, nil
 		}
 	}
 
-	events, err := s.repo.GetAll(facultyID)
+	events, err := s.repo.GetAll(facultyID, role)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.cache != nil {
-		_ = s.cache.SetPosts(eventsListKey(facultyID), events)
+		_ = s.cache.SetPosts(eventsListKey(facultyID, role), events)
 	}
 
 	return events, nil
 }
 
-func (s *Service) GetByID(id int, role string) (*models.Post, error) {
+func (s *Service) GetByID(id int, role string, actorFacultyID *int) (*models.Post, error) {
 	if s.cache != nil && role != "admin" {
 		if cachedEvent, hit, err := s.cache.GetPost(eventKey(id)); err == nil && hit {
-			return cachedEvent, nil
+			if canAccessEvent(role, actorFacultyID, cachedEvent) {
+				return cachedEvent, nil
+			}
 		}
 	}
 
-	event, err := s.repo.GetByID(id, role == "admin")
+	event, err := s.repo.GetByID(id, role == "admin", actorFacultyID)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +232,20 @@ func (s *Service) CancelRegistration(userID, eventID int) error {
 	return nil
 }
 
-func (s *Service) MarkAttended(userID, eventID int) error {
+func (s *Service) MarkAttended(actorID int, actorRole string, actorFacultyID *int, userID, eventID int) error {
+	meta, err := s.repo.GetEventAccessMeta(eventID)
+	if err != nil {
+		return err
+	}
+
+	if actorRole != "admin" {
+		isOwner := meta.AuthorID == actorID
+		sameFaculty := actorFacultyID != nil && meta.FacultyID != nil && *actorFacultyID == *meta.FacultyID
+		if !isOwner && !sameFaculty {
+			return ErrForbidden
+		}
+	}
+
 	return s.repo.MarkAttended(userID, eventID)
 }
 

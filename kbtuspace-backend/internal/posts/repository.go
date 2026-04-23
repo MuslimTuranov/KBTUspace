@@ -39,7 +39,7 @@ func (r *Repository) Create(post *models.Post) error {
 	).Scan(&post.ID, &post.CreatedAt, &post.UpdatedAt)
 }
 
-func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
+func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) {
 	posts := []models.Post{}
 
 	baseQuery := `
@@ -48,6 +48,12 @@ func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
 		WHERE event_date IS NULL
 		  AND status = 'approved'
 	`
+
+	if role == "admin" {
+		baseQuery += " ORDER BY is_pinned DESC, created_at DESC"
+		err := r.db.Select(&posts, baseQuery)
+		return posts, err
+	}
 
 	if facultyID != nil {
 		baseQuery += " AND (scope = 'global' OR faculty_id = $1) ORDER BY is_pinned DESC, created_at DESC"
@@ -60,7 +66,7 @@ func (r *Repository) GetAll(facultyID *int) ([]models.Post, error) {
 	return posts, err
 }
 
-func (r *Repository) GetByID(id int, includeUnapproved bool) (*models.Post, error) {
+func (r *Repository) GetByID(id int, includeUnapproved bool, actorFacultyID *int) (*models.Post, error) {
 	var post models.Post
 
 	query := `
@@ -69,10 +75,21 @@ func (r *Repository) GetByID(id int, includeUnapproved bool) (*models.Post, erro
 		WHERE id = $1 AND event_date IS NULL
 	`
 	if !includeUnapproved {
-		query += " AND status = 'approved'"
+		query += `
+			AND status = 'approved'
+			AND (
+				scope = 'global'
+				OR (scope = 'faculty' AND $2 IS NOT NULL AND faculty_id = $2)
+			)
+		`
 	}
 
-	err := r.db.Get(&post, query, id)
+	args := []interface{}{id}
+	if !includeUnapproved {
+		args = append(args, actorFacultyID)
+	}
+
+	err := r.db.Get(&post, query, args...)
 	if err != nil {
 		return nil, err
 	}

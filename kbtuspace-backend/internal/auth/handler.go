@@ -17,9 +17,9 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
-// Register user
+// Register godoc
 // @Summary     Register a new user
-// @Description Creates a new student or user
+// @Description Creates a new student or user account
 // @Tags        auth
 // @Accept      json
 // @Produce     json
@@ -49,6 +49,19 @@ func (h *Handler) Register(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
 }
 
+// Login godoc
+// @Summary     Login
+// @Description Authenticate user and return JWT token
+// @Tags        auth
+// @Accept      json
+// @Produce     json
+// @Param       input body models.LoginInput true "Login credentials"
+// @Success     200 {object} map[string]interface{}
+// @Failure     400 {object} map[string]interface{}
+// @Failure     401 {object} map[string]interface{}
+// @Failure     403 {object} map[string]interface{}
+// @Failure     500 {object} map[string]interface{}
+// @Router      /auth/login [post]
 func (h *Handler) Login(c *gin.Context) {
 	var input models.LoginInput
 

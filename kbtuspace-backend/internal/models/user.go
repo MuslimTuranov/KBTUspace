@@ -14,8 +14,9 @@ type User struct {
 }
 
 type RegisterInput struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6"`
+	Email     string `json:"email" binding:"required,email"`
+	Password  string `json:"password" binding:"required,min=6"`
+	FacultyID int    `json:"faculty_id" binding:"required"`
 }
 
 type LoginInput struct {

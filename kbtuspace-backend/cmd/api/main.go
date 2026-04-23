@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"kbtuspace-backend/internal/admin"
 	"kbtuspace-backend/internal/auth"
 	"kbtuspace-backend/internal/events"
+	"kbtuspace-backend/internal/faculties"
 	"kbtuspace-backend/internal/middleware"
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
@@ -105,6 +107,12 @@ func main() {
 	reportService := reports.NewService(reportRepo)
 	reportHandler := reports.NewHandler(reportService)
 
+	facultyRepo := faculties.NewRepository(db)
+	facultyService := faculties.NewService(facultyRepo)
+	facultyHandler := faculties.NewHandler(facultyService)
+
+	adminHandler := admin.NewHandler(postService, eventService, userService, reportService)
+
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	// Health check endpoint
@@ -129,6 +137,9 @@ func main() {
 			authGroup.POST("/register", authHandler.Register)
 			authGroup.POST("/login", authHandler.Login)
 		}
+
+		// Public faculties route
+		api.GET("/faculties", facultyHandler.GetAllFaculties)
 
 		// Protected routes
 		protected := api.Group("/")
@@ -166,43 +177,18 @@ func main() {
 			adminOnly := protected.Group("/admin")
 			adminOnly.Use(middleware.RequireRole("admin"))
 			{
-				adminOnly.GET("/moderation/global-content", func(c *gin.Context) {
-					contentType := c.DefaultQuery("type", "all")
-					switch contentType {
-					case "posts":
-						postHandler.ListPendingGlobal(c)
-					case "events":
-						eventHandler.ListPendingGlobal(c)
-					default:
-						posts, postsErr := postService.ListPendingGlobal()
-						events, eventsErr := eventService.ListPendingGlobal()
-						if postsErr != nil || eventsErr != nil {
-							c.JSON(500, gin.H{"error": "Failed to fetch pending global content"})
-							return
-						}
-						if posts == nil {
-							posts = []models.Post{}
-						}
-						if events == nil {
-							events = []models.Post{}
-						}
-						c.JSON(200, gin.H{
-							"posts":  posts,
-							"events": events,
-						})
-					}
-				})
+				adminOnly.GET("/moderation/global-content", adminHandler.GetGlobalContent)
 
 				adminOnly.GET("/reports", reportHandler.List)
 				adminOnly.PATCH("/reports/:id/close", reportHandler.Close)
 
-				adminOnly.PATCH("/posts/:id/approve", postHandler.Approve)
-				adminOnly.PATCH("/posts/:id/reject", postHandler.Reject)
-				adminOnly.DELETE("/posts/:id", postHandler.AdminDelete)
+				adminOnly.PATCH("/posts/:id/approve", adminHandler.ApprovePost)
+				adminOnly.PATCH("/posts/:id/reject", adminHandler.RejectPost)
+				adminOnly.DELETE("/posts/:id", adminHandler.DeletePost)
 
-				adminOnly.PATCH("/events/:id/approve", eventHandler.Approve)
-				adminOnly.PATCH("/events/:id/reject", eventHandler.Reject)
-				adminOnly.DELETE("/events/:id", eventHandler.AdminDelete)
+				adminOnly.PATCH("/events/:id/approve", adminHandler.ApproveEvent)
+				adminOnly.PATCH("/events/:id/reject", adminHandler.RejectEvent)
+				adminOnly.DELETE("/events/:id", adminHandler.DeleteEvent)
 
 				adminOnly.PATCH("/users/:id", userHandler.AdminUpdateUser)
 			}

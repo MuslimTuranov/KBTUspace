@@ -1,15 +1,291 @@
 basePath: /api/v1
 definitions:
-  kbtuspace-backend_internal_models.RegisterInput:
+  models.AdminUpdateUserInput:
+    properties:
+      faculty_id:
+        type: integer
+      is_banned:
+        type: boolean
+      role:
+        enum:
+        - student
+        - organizer
+        - admin
+        type: string
+    type: object
+  models.CloseReportInput:
+    properties:
+      review_note:
+        maxLength: 1000
+        minLength: 3
+        type: string
+      status:
+        enum:
+        - closed
+        - rejected
+        type: string
+    required:
+    - review_note
+    - status
+    type: object
+  models.CreateEventInput:
+    properties:
+      capacity:
+        maximum: 10000
+        minimum: 1
+        type: integer
+      description:
+        maxLength: 5000
+        minLength: 10
+        type: string
+      event_date:
+        type: string
+      faculty_id:
+        type: integer
+      image_url:
+        type: string
+      location:
+        maxLength: 255
+        minLength: 3
+        type: string
+      scope:
+        enum:
+        - faculty
+        - global
+        type: string
+      title:
+        maxLength: 255
+        minLength: 3
+        type: string
+    required:
+    - capacity
+    - description
+    - event_date
+    - location
+    - title
+    type: object
+  models.CreatePostInput:
+    properties:
+      content:
+        maxLength: 5000
+        minLength: 10
+        type: string
+      faculty_id:
+        type: integer
+      image_url:
+        type: string
+      scope:
+        enum:
+        - faculty
+        - global
+        type: string
+      title:
+        maxLength: 255
+        minLength: 3
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  models.CreateReportInput:
+    properties:
+      reason:
+        maxLength: 1000
+        minLength: 3
+        type: string
+      target_id:
+        minimum: 1
+        type: integer
+      target_type:
+        enum:
+        - post
+        - event
+        type: string
+    required:
+    - reason
+    - target_id
+    - target_type
+    type: object
+  models.Faculty:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  models.LoginInput:
     properties:
       email:
         type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.PinPostInput:
+    properties:
+      is_pinned:
+        type: boolean
+    type: object
+  models.Post:
+    properties:
+      approved_at:
+        type: string
+      approved_by:
+        type: integer
+      author_id:
+        type: integer
+      capacity:
+        type: integer
+      content:
+        type: string
+      created_at:
+        type: string
+      current_count:
+        type: integer
+      event_date:
+        type: string
+      faculty_id:
+        type: integer
+      id:
+        type: integer
+      image_url:
+        type: string
+      is_pinned:
+        type: boolean
+      location:
+        type: string
+      rejection_reason:
+        type: string
+      scope:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.RegisterInput:
+    properties:
+      email:
+        type: string
+      faculty_id:
+        type: integer
       password:
         minLength: 6
         type: string
     required:
     - email
+    - faculty_id
     - password
+    type: object
+  models.RejectContentInput:
+    properties:
+      reason:
+        maxLength: 1000
+        minLength: 3
+        type: string
+    required:
+    - reason
+    type: object
+  models.Report:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      reason:
+        type: string
+      reporter_id:
+        type: integer
+      review_note:
+        type: string
+      reviewed_at:
+        type: string
+      reviewed_by:
+        type: integer
+      status:
+        type: string
+      target_author_id:
+        type: integer
+      target_post_id:
+        type: integer
+      target_title:
+        type: string
+      target_type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  models.UpdateEventInput:
+    properties:
+      capacity:
+        maximum: 10000
+        minimum: 1
+        type: integer
+      description:
+        maxLength: 5000
+        minLength: 10
+        type: string
+      event_date:
+        type: string
+      faculty_id:
+        type: integer
+      image_url:
+        type: string
+      location:
+        maxLength: 255
+        minLength: 3
+        type: string
+      scope:
+        enum:
+        - faculty
+        - global
+        type: string
+      title:
+        maxLength: 255
+        minLength: 3
+        type: string
+    required:
+    - capacity
+    - description
+    - event_date
+    - location
+    - title
+    type: object
+  models.UpdatePostInput:
+    properties:
+      content:
+        maxLength: 5000
+        minLength: 10
+        type: string
+      faculty_id:
+        type: integer
+      image_url:
+        type: string
+      is_pinned:
+        type: boolean
+      scope:
+        enum:
+        - faculty
+        - global
+        type: string
+      title:
+        maxLength: 255
+        minLength: 3
+        type: string
+    required:
+    - content
+    - title
+    type: object
+  models.UpdateProfileInput:
+    properties:
+      email:
+        type: string
+      faculty_id:
+        type: integer
     type: object
 host: localhost:8080
 info:
@@ -18,18 +294,463 @@ info:
   title: UniHub API
   version: "1.0"
 paths:
+  /admin/events/{id}:
+    delete:
+      description: Admin forcefully deletes any event by ID
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Admin delete an event
+      tags:
+      - admin
+  /admin/events/{id}/approve:
+    patch:
+      description: Admin approves a pending global event
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve a global event
+      tags:
+      - admin
+  /admin/events/{id}/reject:
+    patch:
+      consumes:
+      - application/json
+      description: Admin rejects a pending global event with a reason
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.RejectContentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject a global event
+      tags:
+      - admin
+  /admin/moderation/global-content:
+    get:
+      description: Returns all global posts awaiting admin approval
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Post'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List pending global posts
+      tags:
+      - admin
+  /admin/posts/{id}:
+    delete:
+      description: Admin forcefully deletes any post by ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Admin delete a post
+      tags:
+      - admin
+  /admin/posts/{id}/approve:
+    patch:
+      description: Admin approves a pending global post
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve a global post
+      tags:
+      - admin
+  /admin/posts/{id}/reject:
+    patch:
+      consumes:
+      - application/json
+      description: Admin rejects a pending global post with a reason
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.RejectContentInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject a global post
+      tags:
+      - admin
+  /admin/reports:
+    get:
+      description: Get reports filtered by status
+      parameters:
+      - description: Report status (pending/closed/rejected)
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Report'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get reports list
+      tags:
+      - admin
+  /admin/reports/{id}/close:
+    patch:
+      consumes:
+      - application/json
+      description: Admin closes a report with resolution
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Close report input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.CloseReportInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Close report
+      tags:
+      - admin
+  /admin/users/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Allows admin to update any user's data (role, ban status, etc.)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User update data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.AdminUpdateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Admin update user
+      tags:
+      - admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user and return JWT token
+      parameters:
+      - description: Login credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login
+      tags:
+      - auth
   /auth/register:
     post:
       consumes:
       - application/json
-      description: Creates a new student or user
+      description: Creates a new student or user account
       parameters:
       - description: Registration info
         in: body
         name: input
         required: true
         schema:
-          $ref: '#/definitions/kbtuspace-backend_internal_models.RegisterInput'
+          $ref: '#/definitions/models.RegisterInput'
       produces:
       - application/json
       responses:
@@ -56,6 +777,776 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /events:
+    get:
+      description: Returns events filtered by faculty or global feed
+      parameters:
+      - description: If true, returns global feed
+        in: query
+        name: global
+        type: boolean
+      - description: Filter by faculty ID
+        in: query
+        name: faculty_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Post'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all events
+      tags:
+      - events
+  /events/:
+    post:
+      consumes:
+      - application/json
+      description: Create a new event (organizer/admin only). Global events require
+        admin approval.
+      parameters:
+      - description: Event data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateEventInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create an event
+      tags:
+      - events
+  /events/{id}:
+    delete:
+      description: Delete an event by ID (organizer/admin only)
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete an event
+      tags:
+      - events
+    get:
+      description: Returns a single event by its ID
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Post'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get event by ID
+      tags:
+      - events
+    put:
+      consumes:
+      - application/json
+      description: Update an existing event by ID (organizer/admin only)
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Event update data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateEventInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update an event
+      tags:
+      - events
+  /events/{id}/attendance/{userId}:
+    patch:
+      description: Mark a registered user as attended (organizer/admin only)
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: User ID
+        in: path
+        name: userId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Mark user attendance
+      tags:
+      - events
+  /events/{id}/register:
+    delete:
+      description: Cancel the current user's registration for an event
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cancel event registration
+      tags:
+      - events
+    post:
+      description: Register the current user for an event
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Register for an event
+      tags:
+      - events
+  /faculties:
+    get:
+      description: Returns a list of all available faculties
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Faculty'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get list of faculties
+      tags:
+      - faculties
+  /posts:
+    get:
+      description: Returns posts filtered by faculty or global feed
+      parameters:
+      - description: If true, returns global feed
+        in: query
+        name: global
+        type: boolean
+      - description: Filter by faculty ID
+        in: query
+        name: faculty_id
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Post'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all posts
+      tags:
+      - posts
+    post:
+      consumes:
+      - application/json
+      description: Create a new post (faculty or global). Global posts require admin
+        approval.
+      parameters:
+      - description: Post data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePostInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a post
+      tags:
+      - posts
+  /posts/{id}:
+    delete:
+      description: Delete a post by ID (owner or admin only)
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a post
+      tags:
+      - posts
+    get:
+      description: Returns a single post by its ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Post'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get post by ID
+      tags:
+      - posts
+    put:
+      consumes:
+      - application/json
+      description: Update an existing post by ID
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Post update data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdatePostInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a post
+      tags:
+      - posts
+  /posts/{id}/pin:
+    patch:
+      consumes:
+      - application/json
+      description: Toggle pin status of a post (organizer/admin only)
+      parameters:
+      - description: Post ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Pin status
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.PinPostInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Pin or unpin a post
+      tags:
+      - posts
+  /profile:
+    get:
+      description: Returns the profile of the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user profile
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: Updates the profile of the authenticated user
+      parameters:
+      - description: Profile update data
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateProfileInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update current user profile
+      tags:
+      - users
+  /reports:
+    post:
+      consumes:
+      - application/json
+      description: Create a report for a post/event/content
+      parameters:
+      - description: Report input
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreateReportInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create report
+      tags:
+      - reports
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer " followed by a space and JWT token.

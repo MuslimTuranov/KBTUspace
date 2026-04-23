@@ -49,8 +49,27 @@ func postKey(id int) string {
 	return cache.PostKey(id)
 }
 
-func postsListKey(facultyID *int) string {
+func postsListKey(facultyID *int, role string) string {
+	if role == "admin" {
+		return cache.PostsListPrefix() + "admin_all"
+	}
 	return cache.PostsListKey(facultyID)
+}
+
+func canAccessPost(role string, actorFacultyID *int, post *models.Post) bool {
+	if role == "admin" {
+		return true
+	}
+	if post.Status != models.ContentStatusApproved {
+		return false
+	}
+	if post.Scope == models.ContentScopeGlobal {
+		return true
+	}
+	if post.Scope == models.ContentScopeFaculty && actorFacultyID != nil && post.FacultyID != nil {
+		return *actorFacultyID == *post.FacultyID
+	}
+	return false
 }
 
 func (s *Service) Create(authorID int, role string, actorFacultyID *int, input models.CreatePostInput) (*models.Post, error) {
@@ -88,33 +107,35 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	return post, nil
 }
 
-func (s *Service) GetAll(facultyID *int) ([]models.Post, error) {
+func (s *Service) GetAll(facultyID *int, role string) ([]models.Post, error) {
 	if s.cache != nil {
-		if cachedPosts, hit, err := s.cache.GetPosts(postsListKey(facultyID)); err == nil && hit {
+		if cachedPosts, hit, err := s.cache.GetPosts(postsListKey(facultyID, role)); err == nil && hit {
 			return cachedPosts, nil
 		}
 	}
 
-	posts, err := s.repo.GetAll(facultyID)
+	posts, err := s.repo.GetAll(facultyID, role)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.cache != nil {
-		_ = s.cache.SetPosts(postsListKey(facultyID), posts)
+		_ = s.cache.SetPosts(postsListKey(facultyID, role), posts)
 	}
 
 	return posts, nil
 }
 
-func (s *Service) GetByID(id int, role string) (*models.Post, error) {
+func (s *Service) GetByID(id int, role string, actorFacultyID *int) (*models.Post, error) {
 	if s.cache != nil && role != "admin" {
 		if cachedPost, hit, err := s.cache.GetPost(postKey(id)); err == nil && hit {
-			return cachedPost, nil
+			if canAccessPost(role, actorFacultyID, cachedPost) {
+				return cachedPost, nil
+			}
 		}
 	}
 
-	post, err := s.repo.GetByID(id, role == "admin")
+	post, err := s.repo.GetByID(id, role == "admin", actorFacultyID)
 	if err != nil {
 		return nil, err
 	}

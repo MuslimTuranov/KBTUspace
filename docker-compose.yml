@@ -1,6 +1,28 @@
-version: '3.8'
-
 services:
+  api:
+    build:
+      context: ./kbtuspace-backend
+      dockerfile: Dockerfile
+    container_name: kbtuspace_api
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=kbtuspace_user
+      - DB_PASSWORD=kbtuspace_pass
+      - DB_NAME=kbtuspace_db
+      - DB_SSLMODE=disable
+      - REDIS_URL=redis://redis:6379
+      - PORT=8080
+      - JWT_SECRET=7f9c2a1b8e4d6f0c3a9b5e7d2c1f8a4e6b3d9c0f1a2e5b7c8d4f6a9e0b2c3d1
+      - ENVIRONMENT=development
+
   postgres:
     image: postgres:15-alpine
     container_name: kbtuspace_postgres
@@ -12,6 +34,11 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kbtuspace_user -d kbtuspace_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
