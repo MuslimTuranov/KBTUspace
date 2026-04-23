@@ -49,7 +49,10 @@ func postKey(id int) string {
 	return cache.PostKey(id)
 }
 
-func postsListKey(facultyID *int, role string) string {
+func postsListKey(facultyID *int, role string, globalOnly bool) string {
+	if globalOnly {
+		return cache.PostsListPrefix() + "global_only"
+	}
 	if role == "admin" {
 		return cache.PostsListPrefix() + "admin_all"
 	}
@@ -107,20 +110,20 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	return post, nil
 }
 
-func (s *Service) GetAll(facultyID *int, role string) ([]models.Post, error) {
+func (s *Service) GetAll(facultyID *int, role string, globalOnly bool) ([]models.Post, error) {
 	if s.cache != nil {
-		if cachedPosts, hit, err := s.cache.GetPosts(postsListKey(facultyID, role)); err == nil && hit {
+		if cachedPosts, hit, err := s.cache.GetPosts(postsListKey(facultyID, role, globalOnly)); err == nil && hit {
 			return cachedPosts, nil
 		}
 	}
 
-	posts, err := s.repo.GetAll(facultyID, role)
+	posts, err := s.repo.GetAll(facultyID, role, globalOnly)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.cache != nil {
-		_ = s.cache.SetPosts(postsListKey(facultyID, role), posts)
+		_ = s.cache.SetPosts(postsListKey(facultyID, role, globalOnly), posts)
 	}
 
 	return posts, nil

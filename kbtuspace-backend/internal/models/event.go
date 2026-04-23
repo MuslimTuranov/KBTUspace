@@ -25,25 +25,25 @@ type Event struct {
 }
 
 type CreateEventInput struct {
-	FacultyID   *int      `json:"faculty_id,omitempty"`
-	Title       string    `json:"title" binding:"required,min=3,max=255"`
-	Description string    `json:"description" binding:"required,min=10,max=5000"`
-	ImageURL    *string   `json:"image_url" binding:"omitempty,url"`
-	EventDate   time.Time `json:"event_date" binding:"required"`
-	Location    string    `json:"location" binding:"required,min=3,max=255"`
-	Capacity    int       `json:"capacity" binding:"required,min=1,max=10000"`
-	Scope       string    `json:"scope" binding:"omitempty,oneof=faculty global"`
+	FacultyID   *int    `json:"faculty_id,omitempty"`
+	Title       string  `json:"title" binding:"required,min=3,max=255"`
+	Description string  `json:"description" binding:"required,min=10,max=5000"`
+	ImageURL    *string `json:"image_url" binding:"omitempty,url"`
+	EventDate   string  `json:"event_date" binding:"required"`
+	Location    string  `json:"location" binding:"required,min=3,max=255"`
+	Capacity    int     `json:"capacity" binding:"required,min=1,max=10000"`
+	Scope       string  `json:"scope" binding:"omitempty,oneof=faculty global"`
 }
 
 type UpdateEventInput struct {
-	FacultyID   *int      `json:"faculty_id,omitempty"`
-	Title       string    `json:"title" binding:"required,min=3,max=255"`
-	Description string    `json:"description" binding:"required,min=10,max=5000"`
-	ImageURL    *string   `json:"image_url" binding:"omitempty,url"`
-	EventDate   time.Time `json:"event_date" binding:"required"`
-	Location    string    `json:"location" binding:"required,min=3,max=255"`
-	Capacity    int       `json:"capacity" binding:"required,min=1,max=10000"`
-	Scope       string    `json:"scope" binding:"omitempty,oneof=faculty global"`
+	FacultyID   *int    `json:"faculty_id,omitempty"`
+	Title       string  `json:"title" binding:"required,min=3,max=255"`
+	Description string  `json:"description" binding:"required,min=10,max=5000"`
+	ImageURL    *string `json:"image_url" binding:"omitempty,url"`
+	EventDate   string  `json:"event_date" binding:"required"`
+	Location    string  `json:"location" binding:"required,min=3,max=255"`
+	Capacity    int     `json:"capacity" binding:"required,min=1,max=10000"`
+	Scope       string  `json:"scope" binding:"omitempty,oneof=faculty global"`
 }
 
 type EventRegistration struct {

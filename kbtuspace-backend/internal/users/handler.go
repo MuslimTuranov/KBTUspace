@@ -19,6 +19,29 @@ func NewHandler(service *Service) *Handler {
 	return &Handler{service: service}
 }
 
+// AdminGetAllUsers godoc
+// @Summary     Get all users
+// @Description Allows admin to get all users
+// @Tags        admin
+// @Produce     json
+// @Security    BearerAuth
+// @Success     200 {array} models.User
+// @Failure     500 {object} map[string]interface{}
+// @Router      /admin/users [get]
+func (h *Handler) AdminGetAllUsers(c *gin.Context) {
+	users, err := h.service.GetAllUsers()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch users"})
+		return
+	}
+
+	if users == nil {
+		users = []models.User{}
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
 // GetProfile godoc
 // @Summary     Get current user profile
 // @Description Returns the profile of the authenticated user

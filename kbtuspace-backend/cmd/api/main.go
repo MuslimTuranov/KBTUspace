@@ -190,6 +190,7 @@ func main() {
 				adminOnly.PATCH("/events/:id/reject", adminHandler.RejectEvent)
 				adminOnly.DELETE("/events/:id", adminHandler.DeleteEvent)
 
+				adminOnly.GET("/users", userHandler.AdminGetAllUsers)
 				adminOnly.PATCH("/users/:id", userHandler.AdminUpdateUser)
 			}
 		}

@@ -1,11 +1,34 @@
 package events
 
 import (
+	"strings"
 	"time"
 
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/pkg/cache"
 )
+
+func parseEventDate(raw string) (time.Time, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return time.Time{}, ErrInvalidEventDate
+	}
+
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02",
+		"02.01.2006",
+	}
+
+	for _, layout := range layouts {
+		parsed, err := time.Parse(layout, value)
+		if err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, ErrInvalidEventDate
+}
 
 type Service struct {
 	repo  *Repository
@@ -49,7 +72,10 @@ func eventKey(id int) string {
 	return cache.EventKey(id)
 }
 
-func eventsListKey(facultyID *int, role string) string {
+func eventsListKey(facultyID *int, role string, globalOnly bool) string {
+	if globalOnly {
+		return cache.EventsListPrefix() + "global_only"
+	}
 	if role == "admin" {
 		return cache.EventsListPrefix() + "admin_all"
 	}
@@ -78,8 +104,11 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 		return nil, err
 	}
 
+	eventDate, err := parseEventDate(input.EventDate)
+	if err != nil {
+		return nil, err
+	}
 	location := input.Location
-	eventDate := input.EventDate
 	post := &models.Post{
 		AuthorID:        authorID,
 		FacultyID:       facultyID,
@@ -112,20 +141,20 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	return post, nil
 }
 
-func (s *Service) GetAll(facultyID *int, role string) ([]models.Post, error) {
+func (s *Service) GetAll(facultyID *int, role string, globalOnly bool) ([]models.Post, error) {
 	if s.cache != nil {
-		if cachedEvents, hit, err := s.cache.GetPosts(eventsListKey(facultyID, role)); err == nil && hit {
+		if cachedEvents, hit, err := s.cache.GetPosts(eventsListKey(facultyID, role, globalOnly)); err == nil && hit {
 			return cachedEvents, nil
 		}
 	}
 
-	events, err := s.repo.GetAll(facultyID, role)
+	events, err := s.repo.GetAll(facultyID, role, globalOnly)
 	if err != nil {
 		return nil, err
 	}
 
 	if s.cache != nil {
-		_ = s.cache.SetPosts(eventsListKey(facultyID, role), events)
+		_ = s.cache.SetPosts(eventsListKey(facultyID, role, globalOnly), events)
 	}
 
 	return events, nil
@@ -158,8 +187,11 @@ func (s *Service) Update(id int, role string, actorFacultyID *int, input models.
 		return err
 	}
 
+	eventDate, err := parseEventDate(input.EventDate)
+	if err != nil {
+		return err
+	}
 	location := input.Location
-	eventDate := input.EventDate
 	post := &models.Post{
 		ID:              id,
 		FacultyID:       facultyID,
@@ -206,8 +238,8 @@ func (s *Service) Delete(id int, role string, actorFacultyID *int) error {
 	return nil
 }
 
-func (s *Service) Register(userID int, eventID int) error {
-	if err := s.repo.Register(userID, eventID); err != nil {
+func (s *Service) Register(userID int, eventID int, actorFacultyID *int) error {
+	if err := s.repo.Register(userID, eventID, actorFacultyID); err != nil {
 		return err
 	}
 
@@ -239,6 +271,9 @@ func (s *Service) MarkAttended(actorID int, actorRole string, actorFacultyID *in
 	}
 
 	if actorRole != "admin" {
+		if meta.FacultyID == nil {
+			return ErrForbidden
+		}
 		isOwner := meta.AuthorID == actorID
 		sameFaculty := actorFacultyID != nil && meta.FacultyID != nil && *actorFacultyID == *meta.FacultyID
 		if !isOwner && !sameFaculty {

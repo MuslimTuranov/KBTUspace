@@ -20,6 +20,10 @@ func (s *Service) GetProfile(userID int) (*models.User, error) {
 	return s.repo.GetByID(userID)
 }
 
+func (s *Service) GetAllUsers() ([]models.User, error) {
+	return s.repo.GetAll()
+}
+
 func (s *Service) UpdateProfile(userID int, input models.UpdateProfileInput) (*models.User, error) {
 	user, err := s.repo.UpdateProfile(userID, input)
 	if err != nil {

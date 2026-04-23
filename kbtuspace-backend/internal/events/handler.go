@@ -67,6 +67,10 @@ func (h *Handler) Create(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		if errors.Is(err, ErrInvalidEventDate) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event_date. Supported formats: RFC3339, YYYY-MM-DD, DD.MM.YYYY"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
 		return
 	}
@@ -98,7 +102,15 @@ func (h *Handler) Create(c *gin.Context) {
 // @Router      /events [get]
 func (h *Handler) GetAll(c *gin.Context) {
 	var facultyID *int
-	globalFeed := c.DefaultQuery("global", "false") == "true"
+	globalFeed := false
+	if rawGlobal := c.Query("global"); rawGlobal != "" {
+		parsedGlobal, err := strconv.ParseBool(rawGlobal)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid global flag"})
+			return
+		}
+		globalFeed = parsedGlobal
+	}
 
 	roleAny, _ := c.Get("role")
 	role, _ := roleAny.(string)
@@ -120,7 +132,7 @@ func (h *Handler) GetAll(c *gin.Context) {
 		}
 	}
 
-	events, err := h.service.GetAll(facultyID, role)
+	events, err := h.service.GetAll(facultyID, role, globalFeed)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch events"})
 		return
@@ -232,6 +244,10 @@ func (h *Handler) Update(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
+		if errors.Is(err, ErrInvalidEventDate) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event_date. Supported formats: RFC3339, YYYY-MM-DD, DD.MM.YYYY"})
+			return
+		}
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
@@ -327,10 +343,21 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	err = h.service.Register(userID, id)
+	var facultyID *int
+	if facultyIDAny, exists := c.Get("facultyID"); exists {
+		if value, ok := facultyIDAny.(int); ok {
+			facultyID = &value
+		}
+	}
+
+	err = h.service.Register(userID, id, facultyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
+		if errors.Is(err, ErrCrossFacultyAccess) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can register only for global or your faculty events"})
 			return
 		}
 		if errors.Is(err, ErrEventFull) {

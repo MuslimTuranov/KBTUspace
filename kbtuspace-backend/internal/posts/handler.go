@@ -98,7 +98,15 @@ func (h *Handler) Create(c *gin.Context) {
 // @Router      /posts [get]
 func (h *Handler) GetAll(c *gin.Context) {
 	var facultyID *int
-	globalFeed := c.DefaultQuery("global", "false") == "true"
+	globalFeed := false
+	if rawGlobal := c.Query("global"); rawGlobal != "" {
+		parsedGlobal, err := strconv.ParseBool(rawGlobal)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid global flag"})
+			return
+		}
+		globalFeed = parsedGlobal
+	}
 
 	roleAny, _ := c.Get("role")
 	role, _ := roleAny.(string)
@@ -120,7 +128,7 @@ func (h *Handler) GetAll(c *gin.Context) {
 		}
 	}
 
-	posts, err := h.service.GetAll(facultyID, role)
+	posts, err := h.service.GetAll(facultyID, role, globalFeed)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch posts"})
 		return

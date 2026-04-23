@@ -39,7 +39,7 @@ func (r *Repository) Create(post *models.Post) error {
 	).Scan(&post.ID, &post.CreatedAt, &post.UpdatedAt)
 }
 
-func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) {
+func (r *Repository) GetAll(facultyID *int, role string, globalOnly bool) ([]models.Post, error) {
 	posts := []models.Post{}
 
 	baseQuery := `
@@ -48,6 +48,12 @@ func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) 
 		WHERE event_date IS NULL
 		  AND status = 'approved'
 	`
+
+	if globalOnly {
+		baseQuery += " AND scope = 'global' ORDER BY is_pinned DESC, created_at DESC"
+		err := r.db.Select(&posts, baseQuery)
+		return posts, err
+	}
 
 	if role == "admin" {
 		baseQuery += " ORDER BY is_pinned DESC, created_at DESC"

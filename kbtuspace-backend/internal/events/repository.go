@@ -50,7 +50,7 @@ func (r *Repository) Create(event *models.Post) error {
 	).Scan(&event.ID, &event.CreatedAt, &event.UpdatedAt)
 }
 
-func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) {
+func (r *Repository) GetAll(facultyID *int, role string, globalOnly bool) ([]models.Post, error) {
 	events := []models.Post{}
 
 	baseQuery := `
@@ -59,6 +59,12 @@ func (r *Repository) GetAll(facultyID *int, role string) ([]models.Post, error) 
 		WHERE event_date IS NOT NULL
 		  AND status = 'approved'
 	`
+
+	if globalOnly {
+		baseQuery += " AND scope = 'global' ORDER BY event_date ASC"
+		err := r.db.Select(&events, baseQuery)
+		return events, err
+	}
 
 	if role == "admin" {
 		baseQuery += " ORDER BY event_date ASC"
@@ -196,7 +202,7 @@ func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
 	}
 }
 
-func (r *Repository) Register(userID int, eventID int) error {
+func (r *Repository) Register(userID int, eventID int, actorFacultyID *int) error {
 	tx, err := r.db.BeginTxx(context.Background(), nil)
 	if err != nil {
 		return err
@@ -206,11 +212,13 @@ func (r *Repository) Register(userID int, eventID int) error {
 	}()
 
 	var event struct {
-		Capacity     int `db:"capacity"`
-		CurrentCount int `db:"current_count"`
+		Capacity     int    `db:"capacity"`
+		CurrentCount int    `db:"current_count"`
+		Scope        string `db:"scope"`
+		FacultyID    *int   `db:"faculty_id"`
 	}
 	query := `
-		SELECT capacity, current_count
+		SELECT capacity, current_count, scope, faculty_id
 		FROM posts
 		WHERE id = $1 AND event_date IS NOT NULL AND status = 'approved'
 		FOR UPDATE
@@ -225,6 +233,12 @@ func (r *Repository) Register(userID int, eventID int) error {
 
 	if event.CurrentCount >= event.Capacity {
 		return ErrEventFull
+	}
+
+	if event.Scope == models.ContentScopeFaculty {
+		if actorFacultyID == nil || event.FacultyID == nil || *actorFacultyID != *event.FacultyID {
+			return ErrCrossFacultyAccess
+		}
 	}
 
 	var existingStatus string

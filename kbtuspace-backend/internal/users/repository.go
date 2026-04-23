@@ -24,6 +24,15 @@ func (r *Repository) GetByID(id int) (*models.User, error) {
 	return &user, nil
 }
 
+func (r *Repository) GetAll() ([]models.User, error) {
+	users := []models.User{}
+	query := `SELECT id, email, password_hash, role, faculty_id, is_banned, created_at, updated_at FROM users ORDER BY id ASC`
+	if err := r.db.Select(&users, query); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func (r *Repository) GetByEmail(email string) (*models.User, error) {
 	var user models.User
 	query := `SELECT id, email, password_hash, role, faculty_id, is_banned, created_at, updated_at FROM users WHERE email = $1`
