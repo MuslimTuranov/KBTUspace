@@ -205,21 +205,41 @@ func (r *Repository) Register(userID int, eventID int) error {
 		return ErrEventFull
 	}
 
-	if _, err := tx.Exec(`UPDATE posts SET current_count = current_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, eventID); err != nil {
+	var existingStatus string
+	err = tx.Get(&existingStatus, `
+		SELECT status FROM registrations WHERE user_id = $1 AND event_id = $2 FOR UPDATE
+	`, userID, eventID)
+
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 
-	_, err = tx.Exec(
-		`INSERT INTO registrations (user_id, event_id, status, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-		userID,
-		eventID,
-		models.RegistrationStatusRegistered,
-	)
-	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+	if err == nil {
+		if existingStatus != models.RegistrationStatusCancelled {
 			return ErrAlreadyRegistered
 		}
+		if _, err := tx.Exec(`
+			UPDATE registrations SET status = $1, updated_at = CURRENT_TIMESTAMP
+			WHERE user_id = $2 AND event_id = $3
+		`, models.RegistrationStatusRegistered, userID, eventID); err != nil {
+			return err
+		}
+	} else {
+		if _, err := tx.Exec(`
+			INSERT INTO registrations (user_id, event_id, status, updated_at)
+			VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+		`, userID, eventID, models.RegistrationStatusRegistered); err != nil {
+			var pqErr *pq.Error
+			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+				return ErrAlreadyRegistered
+			}
+			return err
+		}
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE posts SET current_count = current_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+	`, eventID); err != nil {
 		return err
 	}
 
@@ -227,6 +247,75 @@ func (r *Repository) Register(userID int, eventID int) error {
 		return err
 	}
 
+	return nil
+}
+
+func (r *Repository) CancelRegistration(userID, eventID int) error {
+	tx, err := r.db.BeginTxx(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	var dummy int
+	if err := tx.Get(&dummy, `
+		SELECT 1 FROM posts WHERE id = $1 AND event_date IS NOT NULL FOR UPDATE
+	`, eventID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return sql.ErrNoRows
+		}
+		return err
+	}
+
+	var existingStatus string
+	if err := tx.Get(&existingStatus, `
+		SELECT status FROM registrations WHERE user_id = $1 AND event_id = $2 FOR UPDATE
+	`, userID, eventID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotRegistered
+		}
+		return err
+	}
+
+	if existingStatus != models.RegistrationStatusRegistered {
+		return ErrNotRegistered
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE registrations SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1 AND event_id = $2
+	`, userID, eventID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(`
+		UPDATE posts SET current_count = GREATEST(current_count - 1, 0), updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, eventID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (r *Repository) MarkAttended(userID, eventID int) error {
+	result, err := r.db.Exec(`
+		UPDATE registrations
+		SET status = 'attended', updated_at = CURRENT_TIMESTAMP
+		WHERE user_id = $1 AND event_id = $2 AND status = 'registered'
+	`, userID, eventID)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrNotRegistered
+	}
 	return nil
 }
 

@@ -256,6 +256,60 @@ func (h *Handler) Register(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully registered for event"})
 }
 
+func (h *Handler) CancelRegistration(c *gin.Context) {
+	eventID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.CancelRegistration(userID, eventID); err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+		case errors.Is(err, ErrNotRegistered):
+			c.JSON(http.StatusConflict, gin.H{"error": "Not registered for this event"})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to cancel registration"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Registration cancelled successfully"})
+}
+
+func (h *Handler) MarkAttendance(c *gin.Context) {
+	eventID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event ID"})
+		return
+	}
+
+	targetUserID, err := strconv.Atoi(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.MarkAttended(targetUserID, eventID); err != nil {
+		if errors.Is(err, ErrNotRegistered) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User is not registered for this event"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to mark attendance"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Attendance marked successfully"})
+}
+
 func (h *Handler) ListPendingGlobal(c *gin.Context) {
 	events, err := h.service.ListPendingGlobal()
 	if err != nil {

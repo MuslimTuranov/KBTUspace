@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"kbtuspace-backend/internal/auth"
@@ -12,6 +16,7 @@ import (
 	"kbtuspace-backend/internal/posts"
 	"kbtuspace-backend/internal/reports"
 	"kbtuspace-backend/internal/users"
+	"kbtuspace-backend/internal/worker"
 	"kbtuspace-backend/pkg/cache"
 	"kbtuspace-backend/pkg/config"
 	"kbtuspace-backend/pkg/logger"
@@ -45,7 +50,8 @@ func main() {
 		return
 	}
 
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	db, err := models.InitDB(cfg)
 	if err != nil {
@@ -56,6 +62,12 @@ func main() {
 
 	slog.InfoContext(ctx, "Connected to database")
 
+	if err := models.SeedDefaults(db); err != nil {
+		slog.ErrorContext(ctx, "Failed to seed defaults", slog.Any("error", err))
+		return
+	}
+
+	// Initialize Redis cache
 	cacheClient, err := cache.NewRedisCache(cfg.RedisURL, 10*time.Minute)
 	if err != nil {
 		slog.InfoContext(ctx, "Redis cache disabled", slog.Any("error", err))
@@ -138,6 +150,7 @@ func main() {
 			protected.GET("/events", eventHandler.GetAll)
 			protected.GET("/events/:id", eventHandler.GetByID)
 			protected.POST("/events/:id/register", eventHandler.Register)
+			protected.DELETE("/events/:id/register", eventHandler.CancelRegistration)
 			protected.POST("/reports", reportHandler.Create)
 
 			// Organizer-only routes
@@ -147,6 +160,7 @@ func main() {
 				organizerOnly.POST("/", eventHandler.Create)
 				organizerOnly.PUT("/:id", eventHandler.Update)
 				organizerOnly.DELETE("/:id", eventHandler.Delete)
+				organizerOnly.PATCH("/:id/attendance/:userId", eventHandler.MarkAttendance)
 			}
 
 			adminOnly := protected.Group("/admin")
@@ -195,9 +209,30 @@ func main() {
 		}
 	}
 
-	addr := ":" + cfg.Port
-	slog.InfoContext(ctx, "Starting server", slog.String("address", addr))
-	if err := router.Run(addr); err != nil {
-		slog.ErrorContext(ctx, "Failed to start server", slog.Any("error", err))
+	// Start server
+	reminderWorker := worker.NewReminderWorker(db)
+	go reminderWorker.Start(ctx)
+
+	srv := &http.Server{
+		Addr:    ":" + cfg.Port,
+		Handler: router,
 	}
+
+	go func() {
+		slog.InfoContext(ctx, "Starting server", slog.String("address", srv.Addr))
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.ErrorContext(ctx, "Server error", slog.Any("error", err))
+		}
+	}()
+
+	<-ctx.Done()
+	slog.InfoContext(context.Background(), "Shutting down gracefully...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.ErrorContext(shutdownCtx, "Forced shutdown", slog.Any("error", err))
+	}
+
+	slog.InfoContext(context.Background(), "Server stopped")
 }
