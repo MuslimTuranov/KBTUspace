@@ -13,7 +13,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		"http://localhost:5173",  // Vite default
 		"http://127.0.0.1:3000",
 	}
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	config.AllowHeaders = []string{"Authorization", "Content-Type", "Accept"}
 	config.ExposeHeaders = []string{"Content-Length"}
 	config.AllowCredentials = true
