@@ -168,7 +168,7 @@ func main() {
 			organizerOnly := protected.Group("/events")
 			organizerOnly.Use(middleware.RequireRole("organizer", "admin"))
 			{
-				organizerOnly.POST("/", eventHandler.Create)
+				organizerOnly.POST("", eventHandler.Create)
 				organizerOnly.PUT("/:id", eventHandler.Update)
 				organizerOnly.DELETE("/:id", eventHandler.Delete)
 				organizerOnly.PATCH("/:id/attendance/:userId", eventHandler.MarkAttendance)

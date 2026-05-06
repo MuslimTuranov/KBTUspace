@@ -27,8 +27,8 @@ type Post struct {
 	RejectionReason *string    `db:"rejection_reason" json:"rejection_reason,omitempty"`
 	EventDate       *time.Time `db:"event_date" json:"event_date,omitempty"`
 	Location        *string    `db:"location" json:"location,omitempty"`
-	Capacity        int        `db:"capacity" json:"capacity,omitempty"`
-	CurrentCount    int        `db:"current_count" json:"current_count,omitempty"`
+	Capacity        int        `db:"capacity" json:"capacity"`
+	CurrentCount    int        `db:"current_count" json:"current_count"`
 	CreatedAt       time.Time  `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time  `db:"updated_at" json:"updated_at"`
 }

@@ -1,0 +1,13 @@
+import api from './client';
+import type { PendingContent, Report, User } from '../types';
+export const getPendingContent = async (type: 'all' | 'posts' | 'events' = 'all') => { const res = await api.get<PendingContent>('/admin/moderation/global-content', { params: { type } }); return res.data; };
+export const approvePost = async (id: number) => { const res = await api.patch<{ message: string }>(`/admin/posts/${id}/approve`); return res.data; };
+export const rejectPost = async (id: number, reason: string) => { const res = await api.patch<{ message: string }>(`/admin/posts/${id}/reject`, { reason }); return res.data; };
+export const adminDeletePost = async (id: number) => { const res = await api.delete<{ message: string }>(`/admin/posts/${id}`); return res.data; };
+export const approveEvent = async (id: number) => { const res = await api.patch<{ message: string }>(`/admin/events/${id}/approve`); return res.data; };
+export const rejectEvent = async (id: number, reason: string) => { const res = await api.patch<{ message: string }>(`/admin/events/${id}/reject`, { reason }); return res.data; };
+export const adminDeleteEvent = async (id: number) => { const res = await api.delete<{ message: string }>(`/admin/events/${id}`); return res.data; };
+export const getReports = async (status = 'pending') => { const res = await api.get<Report[]>('/admin/reports', { params: { status } }); return res.data; };
+export const closeReport = async (id: number, status: 'closed' | 'rejected', review_note: string) => { const res = await api.patch<{ message: string }>(`/admin/reports/${id}/close`, { status, review_note }); return res.data; };
+export const listUsers = async () => { const res = await api.get<User[]>('/admin/users'); return res.data; };
+export const updateUser = async (id: number, data: Partial<Pick<User, 'role' | 'faculty_id' | 'is_banned'>>) => { const res = await api.patch<User>(`/admin/users/${id}`, data); return res.data; };
