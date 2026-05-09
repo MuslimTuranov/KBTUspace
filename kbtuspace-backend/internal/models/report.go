@@ -19,7 +19,7 @@ type CreateReportInput struct {
 
 type CloseReportInput struct {
 	Status     string `json:"status" binding:"required,oneof=closed rejected"`
-	ReviewNote string `json:"review_note" binding:"required,min=3,max=1000"`
+	ReviewNote string `json:"review_note" binding:"omitempty,max=1000"`
 }
 
 type Report struct {

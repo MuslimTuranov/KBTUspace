@@ -13,6 +13,8 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrInvalidCredentials = errors.New("invalid email or password")
 	ErrUserBanned         = errors.New("user is banned")
+	ErrInvalidEmailDomain = errors.New("email must use the kbtu.kz domain")
+	ErrFacultyRequired    = errors.New("faculty is required")
 )
 
 func ParseDatabaseError(err error) error {

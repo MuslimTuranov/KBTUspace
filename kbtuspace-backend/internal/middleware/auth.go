@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -10,9 +11,17 @@ import (
 	"kbtuspace-backend/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
 )
 
-func RequireAuth(secretKey []byte) gin.HandlerFunc {
+type authUser struct {
+	ID        int    `db:"id"`
+	FacultyID *int   `db:"faculty_id"`
+	Role      string `db:"role"`
+	IsBanned  bool   `db:"is_banned"`
+}
+
+func RequireAuth(secretKey []byte, db *sqlx.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -46,19 +55,31 @@ func RequireAuth(secretKey []byte) gin.HandlerFunc {
 			return
 		}
 
-		role, ok := claims["role"].(string)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+		var user authUser
+		if err := db.GetContext(c.Request.Context(), &user, `
+			SELECT id, role, faculty_id, is_banned
+			FROM users
+			WHERE id = $1
+		`, int(userID)); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+				return
+			}
+			slog.ErrorContext(c.Request.Context(), "failed to load auth user", slog.Any("error", err))
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Authentication failed"})
 			return
 		}
 
-		c.Set("userID", int(userID))
-		c.Set("role", role)
+		if user.IsBanned {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "User is banned"})
+			return
+		}
 
-		if facultyID := claims["faculty_id"]; facultyID != nil {
-			if fid, ok := facultyID.(float64); ok {
-				c.Set("facultyID", int(fid))
-			}
+		c.Set("userID", user.ID)
+		c.Set("role", user.Role)
+
+		if user.Role != "admin" && user.FacultyID != nil {
+			c.Set("facultyID", *user.FacultyID)
 		}
 
 		c.Next()

@@ -1,4 +1,16 @@
 services:
+  frontend:
+    build:
+      context: ./kbtuspace-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080/api/v1}
+    container_name: kbtuspace_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
   api:
     build:
       context: ./kbtuspace-backend
@@ -6,6 +18,8 @@ services:
     container_name: kbtuspace_api
     ports:
       - "8080:8080"
+    volumes:
+      - backend_uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -14,22 +28,25 @@ services:
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=kbtuspace_user
-      - DB_PASSWORD=kbtuspace_pass
-      - DB_NAME=kbtuspace_db
+      - DB_USER=${DB_USER:-kbtuspace_user}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_NAME=${DB_NAME:-kbtuspace_db}
       - DB_SSLMODE=disable
       - REDIS_URL=redis://redis:6379
       - PORT=8080
-      - JWT_SECRET=7f9c2a1b8e4d6f0c3a9b5e7d2c1f8a4e6b3d9c0f1a2e5b7c8d4f6a9e0b2c3d1
-      - ENVIRONMENT=development
+      - JWT_SECRET=${JWT_SECRET:-}
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000}
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@kbtu.kz}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-}
 
   postgres:
     image: postgres:15-alpine
     container_name: kbtuspace_postgres
     environment:
-      POSTGRES_USER: kbtuspace_user
-      POSTGRES_PASSWORD: kbtuspace_pass
-      POSTGRES_DB: kbtuspace_db
+      POSTGRES_USER: ${DB_USER:-kbtuspace_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-}
+      POSTGRES_DB: ${DB_NAME:-kbtuspace_db}
     ports:
       - "5433:5432"
     volumes:
@@ -51,3 +68,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backend_uploads:

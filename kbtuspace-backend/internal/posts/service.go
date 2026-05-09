@@ -28,10 +28,7 @@ func resolveModeration(role string, actorFacultyID *int, requestedFacultyID *int
 			now := time.Now()
 			return nil, models.ContentScopeGlobal, models.ContentStatusApproved, nil, &now, nil, nil
 		}
-		if role == "organizer" {
-			return nil, models.ContentScopeGlobal, models.ContentStatusPending, nil, nil, nil, nil
-		}
-		return nil, "", "", nil, nil, nil, ErrForbidden
+		return nil, models.ContentScopeGlobal, models.ContentStatusPending, nil, nil, nil, nil
 	case models.ContentScopeFaculty:
 		if role == "admin" && requestedFacultyID != nil {
 			return requestedFacultyID, models.ContentScopeFaculty, models.ContentStatusApproved, nil, nil, nil, nil
@@ -52,9 +49,6 @@ func postKey(id int) string {
 func postsListKey(facultyID *int, role string, globalOnly bool) string {
 	if globalOnly {
 		return cache.PostsListPrefix() + "global_only"
-	}
-	if role == "admin" {
-		return cache.PostsListPrefix() + "admin_all"
 	}
 	return cache.PostsListKey(facultyID)
 }
@@ -103,7 +97,6 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	}
 
 	if s.cache != nil && post.Status == models.ContentStatusApproved {
-		_ = s.cache.SetPost(postKey(post.ID), post)
 		_ = s.cache.DeletePrefix(cache.PostsListPrefix())
 	}
 

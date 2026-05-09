@@ -16,7 +16,7 @@ type User struct {
 type RegisterInput struct {
 	Email     string `json:"email" binding:"required,email"`
 	Password  string `json:"password" binding:"required,min=6"`
-	FacultyID *int   `json:"faculty_id,omitempty"`
+	FacultyID *int   `json:"faculty_id" binding:"required"`
 }
 
 type LoginInput struct {
@@ -27,6 +27,11 @@ type LoginInput struct {
 type UpdateProfileInput struct {
 	Email     *string `json:"email,omitempty" binding:"omitempty,email"`
 	FacultyID *int    `json:"faculty_id,omitempty"`
+}
+
+type ChangePasswordInput struct {
+	CurrentPassword string `json:"current_password" binding:"required"`
+	NewPassword     string `json:"new_password" binding:"required,min=6"`
 }
 
 type AdminUpdateUserInput struct {

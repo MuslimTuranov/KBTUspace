@@ -8,15 +8,15 @@ export interface User {
   id: number; email: string; role: Role; faculty_id: number | null; is_banned: boolean; created_at: string; updated_at: string;
 }
 export interface Post {
-  id: number; author_id: number; faculty_id: number | null; title: string; content: string; image_url: string | null;
+  id: number; author_id: number; author_email?: string; faculty_id: number | null; title: string; content: string; image_url: string | null;
   is_pinned: boolean; scope: Scope; status: PostStatus; approved_by: number | null; approved_at: string | null;
   rejection_reason: string | null; created_at: string; updated_at: string;
 }
 export interface Event {
-  id: number; author_id: number; faculty_id: number | null; title: string; description: string; image_url: string | null;
+  id: number; author_id: number; author_email?: string; faculty_id: number | null; title: string; content: string; image_url: string | null;
   event_date: string; location: string; capacity: number; current_count: number; is_pinned: boolean;
   scope: Scope; status: PostStatus; approved_by: number | null; approved_at: string | null;
-  rejection_reason: string | null; created_at: string; updated_at: string;
+  rejection_reason: string | null; is_registered?: boolean; created_at: string; updated_at: string;
 }
 export interface Report {
   id: number; reporter_id: number; target_post_id: number; target_type: ReportTargetType; reason: string;

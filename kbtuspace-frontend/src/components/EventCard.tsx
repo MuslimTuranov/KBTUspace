@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFacultyName } from '../hooks/useFaculties';
 import type { Event } from '../types';
 import ReportModal from './ReportModal';
+import { assetUrl } from '../api/assets';
 
 export default function EventCard({ event }: { event: Event }) {
   const { user } = useAuth();
@@ -30,10 +31,10 @@ export default function EventCard({ event }: { event: Event }) {
           </div>
           {!isOwner && <button onClick={() => setShowReport(true)} className="btn-ghost p-1.5 rounded-md text-gray-400"><Flag className="w-4 h-4" /></button>}
         </div>
-        {event.image_url && <img src={event.image_url} alt="" className="rounded-lg w-full h-40 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+        {event.image_url && <img src={assetUrl(event.image_url)} alt="" className="rounded-lg w-full h-40 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
         <div>
           <Link to={`/events/${event.id}`} className="text-base font-semibold text-gray-900 hover:text-blue-700 line-clamp-2">{event.title}</Link>
-          <p className="mt-1 text-sm text-gray-600 line-clamp-2">{event.description}</p>
+          <p className="mt-1 text-sm text-gray-600 line-clamp-2">{event.content}</p>
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-gray-500">
           <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" />{format(new Date(event.event_date), 'MMM d, yyyy · HH:mm')}</span>

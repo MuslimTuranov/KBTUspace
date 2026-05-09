@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"kbtuspace-backend/internal/handlers"
 	"kbtuspace-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -33,13 +34,21 @@ func (h *Handler) Register(c *gin.Context) {
 	var input models.RegisterInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
 	if err := h.service.RegisterUser(input); err != nil {
 		if errors.Is(err, ErrDuplicateEmail) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrInvalidEmailDomain) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrFacultyRequired) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
@@ -66,7 +75,7 @@ func (h *Handler) Login(c *gin.Context) {
 	var input models.LoginInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 

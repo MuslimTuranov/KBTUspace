@@ -17,6 +17,7 @@ import (
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/internal/posts"
 	"kbtuspace-backend/internal/reports"
+	"kbtuspace-backend/internal/uploads"
 	"kbtuspace-backend/internal/users"
 	"kbtuspace-backend/internal/worker"
 	"kbtuspace-backend/pkg/cache"
@@ -64,12 +65,11 @@ func main() {
 
 	slog.InfoContext(ctx, "Connected to database")
 
-	if err := models.SeedDefaults(db); err != nil {
+	if err := models.SeedDefaults(db, cfg); err != nil {
 		slog.ErrorContext(ctx, "Failed to seed defaults", slog.Any("error", err))
 		return
 	}
 
-	// Initialize Redis cache
 	cacheClient, err := cache.NewRedisCache(cfg.RedisURL, 10*time.Minute)
 	if err != nil {
 		slog.InfoContext(ctx, "Redis cache disabled", slog.Any("error", err))
@@ -85,7 +85,8 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 	router.Use(gin.Recovery())
-	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.CORSMiddleware(cfg.CORSAllowedOrigins))
+	router.Static("/uploads", "./uploads")
 
 	authRepo := auth.NewRepository(db)
 	authService := auth.NewService(authRepo, []byte(cfg.JWTSecret))
@@ -104,12 +105,13 @@ func main() {
 	eventHandler := events.NewHandler(eventService)
 
 	reportRepo := reports.NewRepository(db)
-	reportService := reports.NewService(reportRepo)
+	reportService := reports.NewService(reportRepo, cacheClient)
 	reportHandler := reports.NewHandler(reportService)
 
 	facultyRepo := faculties.NewRepository(db)
 	facultyService := faculties.NewService(facultyRepo)
 	facultyHandler := faculties.NewHandler(facultyService)
+	uploadHandler := uploads.NewHandler("./uploads")
 
 	adminHandler := admin.NewHandler(postService, eventService, userService, reportService)
 
@@ -143,11 +145,12 @@ func main() {
 
 		// Protected routes
 		protected := api.Group("/")
-		protected.Use(middleware.RequireAuth([]byte(cfg.JWTSecret)))
+		protected.Use(middleware.RequireAuth([]byte(cfg.JWTSecret), db))
 		{
 			// Profile
 			protected.GET("/profile", userHandler.GetProfile)
 			protected.PUT("/profile", userHandler.UpdateProfile)
+			protected.PATCH("/profile/password", userHandler.ChangePassword)
 
 			// Posts
 			protected.POST("/posts", postHandler.Create)
@@ -163,6 +166,7 @@ func main() {
 			protected.POST("/events/:id/register", eventHandler.Register)
 			protected.DELETE("/events/:id/register", eventHandler.CancelRegistration)
 			protected.POST("/reports", reportHandler.Create)
+			protected.POST("/uploads/images", uploadHandler.UploadImage)
 
 			// Organizer-only routes
 			organizerOnly := protected.Group("/events")
@@ -196,7 +200,6 @@ func main() {
 		}
 	}
 
-	// Start server
 	reminderWorker := worker.NewReminderWorker(db)
 	go reminderWorker.Start(ctx)
 

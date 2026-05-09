@@ -4,14 +4,16 @@ import (
 	"database/sql"
 
 	"kbtuspace-backend/internal/models"
+	"kbtuspace-backend/pkg/cache"
 )
 
 type Service struct {
-	repo *Repository
+	repo  *Repository
+	cache cache.PostsCache
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, postsCache cache.PostsCache) *Service {
+	return &Service{repo: repo, cache: postsCache}
 }
 
 func (s *Service) Create(reporterID int, input models.CreateReportInput) (*models.Report, error) {
@@ -67,5 +69,21 @@ func (s *Service) List(status string) ([]models.Report, error) {
 }
 
 func (s *Service) Close(id, adminID int, input models.CloseReportInput) error {
-	return s.repo.Close(id, input.Status, input.ReviewNote, adminID)
+	target, err := s.repo.CloseAndDeleteTarget(id, input.Status, input.ReviewNote, adminID)
+	if err != nil {
+		return err
+	}
+
+	if s.cache != nil && input.Status == models.ReportStatusClosed {
+		switch target.TargetType {
+		case models.ReportTargetEvent:
+			_ = s.cache.Delete(cache.EventKey(target.TargetPostID))
+			_ = s.cache.DeletePrefix(cache.EventsListPrefix())
+		default:
+			_ = s.cache.Delete(cache.PostKey(target.TargetPostID))
+			_ = s.cache.DeletePrefix(cache.PostsListPrefix())
+		}
+	}
+
+	return nil
 }

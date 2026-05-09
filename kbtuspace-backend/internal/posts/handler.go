@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"kbtuspace-backend/internal/handlers"
 	"kbtuspace-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +37,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(c *gin.Context) {
 	var input models.CreatePostInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -65,6 +66,10 @@ func (h *Handler) Create(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, ErrFacultyRequired) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, ErrForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Only organizers and admins can create posts"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create post"})
@@ -212,7 +217,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var input models.UpdatePostInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -331,7 +336,7 @@ func (h *Handler) Pin(c *gin.Context) {
 
 	var input models.PinPostInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 

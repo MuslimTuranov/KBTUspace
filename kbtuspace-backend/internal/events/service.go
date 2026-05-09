@@ -76,9 +76,6 @@ func eventsListKey(facultyID *int, role string, globalOnly bool) string {
 	if globalOnly {
 		return cache.EventsListPrefix() + "global_only"
 	}
-	if role == "admin" {
-		return cache.EventsListPrefix() + "admin_all"
-	}
 	return cache.EventsListKey(facultyID)
 }
 
@@ -86,16 +83,7 @@ func canAccessEvent(role string, actorFacultyID *int, event *models.Post) bool {
 	if role == "admin" {
 		return true
 	}
-	if event.Status != models.ContentStatusApproved {
-		return false
-	}
-	if event.Scope == models.ContentScopeGlobal {
-		return true
-	}
-	if event.Scope == models.ContentScopeFaculty && actorFacultyID != nil && event.FacultyID != nil {
-		return *actorFacultyID == *event.FacultyID
-	}
-	return false
+	return event.Status == models.ContentStatusApproved
 }
 
 func (s *Service) Create(authorID int, role string, actorFacultyID *int, input models.CreateEventInput) (*models.Post, error) {
@@ -107,6 +95,9 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	eventDate, err := parseEventDate(input.EventDate)
 	if err != nil {
 		return nil, err
+	}
+	if eventDate.Before(time.Now()) {
+		return nil, ErrEventDateInPast
 	}
 	location := input.Location
 	post := &models.Post{
@@ -134,7 +125,6 @@ func (s *Service) Create(authorID int, role string, actorFacultyID *int, input m
 	}
 
 	if s.cache != nil && post.Status == models.ContentStatusApproved {
-		_ = s.cache.SetPost(eventKey(post.ID), post)
 		_ = s.cache.DeletePrefix(cache.EventsListPrefix())
 	}
 
@@ -160,10 +150,15 @@ func (s *Service) GetAll(facultyID *int, role string, globalOnly bool) ([]models
 	return events, nil
 }
 
-func (s *Service) GetByID(id int, role string, actorFacultyID *int) (*models.Post, error) {
+func (s *Service) GetByID(id int, userID int, role string, actorFacultyID *int) (*models.Post, error) {
 	if s.cache != nil && role != "admin" {
 		if cachedEvent, hit, err := s.cache.GetPost(eventKey(id)); err == nil && hit {
 			if canAccessEvent(role, actorFacultyID, cachedEvent) {
+				registered, err := s.repo.IsUserRegistered(userID, id)
+				if err != nil {
+					return nil, err
+				}
+				cachedEvent.IsRegistered = &registered
 				return cachedEvent, nil
 			}
 		}
@@ -174,14 +169,22 @@ func (s *Service) GetByID(id int, role string, actorFacultyID *int) (*models.Pos
 		return nil, err
 	}
 
+	registered, err := s.repo.IsUserRegistered(userID, id)
+	if err != nil {
+		return nil, err
+	}
+	event.IsRegistered = &registered
+
 	if s.cache != nil && event.Status == models.ContentStatusApproved {
-		_ = s.cache.SetPost(eventKey(id), event)
+		cacheEvent := *event
+		cacheEvent.IsRegistered = nil
+		_ = s.cache.SetPost(eventKey(id), &cacheEvent)
 	}
 
 	return event, nil
 }
 
-func (s *Service) Update(id int, role string, actorFacultyID *int, input models.UpdateEventInput) error {
+func (s *Service) Update(id int, actorID int, role string, actorFacultyID *int, input models.UpdateEventInput) error {
 	facultyID, scope, status, approvedBy, approvedAt, rejectionReason, err := resolveModeration(role, actorFacultyID, input.FacultyID, input.Scope)
 	if err != nil {
 		return err
@@ -190,6 +193,9 @@ func (s *Service) Update(id int, role string, actorFacultyID *int, input models.
 	eventDate, err := parseEventDate(input.EventDate)
 	if err != nil {
 		return err
+	}
+	if eventDate.Before(time.Now()) {
+		return ErrEventDateInPast
 	}
 	location := input.Location
 	post := &models.Post{
@@ -209,7 +215,11 @@ func (s *Service) Update(id int, role string, actorFacultyID *int, input models.
 		Capacity:        input.Capacity,
 	}
 
-	if err := s.repo.Update(post, role == "admin", actorFacultyID); err != nil {
+	if role == "admin" && status == models.ContentStatusApproved {
+		post.ApprovedBy = &actorID
+	}
+
+	if err := s.repo.Update(post, actorID, role == "admin", actorFacultyID); err != nil {
 		return err
 	}
 
@@ -221,12 +231,8 @@ func (s *Service) Update(id int, role string, actorFacultyID *int, input models.
 	return nil
 }
 
-func (s *Service) Delete(id int, role string, actorFacultyID *int) error {
-	if role != "admin" && (actorFacultyID == nil || *actorFacultyID <= 0) {
-		return ErrFacultyRequired
-	}
-
-	if err := s.repo.Delete(id, role == "admin", actorFacultyID); err != nil {
+func (s *Service) Delete(id int, actorID int, role string, actorFacultyID *int) error {
+	if err := s.repo.Delete(id, actorID, role == "admin", actorFacultyID); err != nil {
 		return err
 	}
 
@@ -238,8 +244,8 @@ func (s *Service) Delete(id int, role string, actorFacultyID *int) error {
 	return nil
 }
 
-func (s *Service) Register(userID int, eventID int, actorFacultyID *int) error {
-	if err := s.repo.Register(userID, eventID, actorFacultyID); err != nil {
+func (s *Service) Register(userID int, eventID int, role string, actorFacultyID *int) error {
+	if err := s.repo.Register(userID, eventID, actorFacultyID, role == "admin"); err != nil {
 		return err
 	}
 
@@ -271,9 +277,6 @@ func (s *Service) MarkAttended(actorID int, actorRole string, actorFacultyID *in
 	}
 
 	if actorRole != "admin" {
-		if meta.FacultyID == nil {
-			return ErrForbidden
-		}
 		isOwner := meta.AuthorID == actorID
 		sameFaculty := actorFacultyID != nil && meta.FacultyID != nil && *actorFacultyID == *meta.FacultyID
 		if !isOwner && !sameFaculty {

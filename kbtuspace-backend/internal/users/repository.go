@@ -1,6 +1,8 @@
 package users
 
 import (
+	"database/sql"
+
 	"kbtuspace-backend/internal/models"
 
 	"github.com/jmoiron/sqlx"
@@ -54,27 +56,39 @@ func (r *Repository) UpdateProfile(userID int, input models.UpdateProfileInput) 
 		email = *input.Email
 	}
 
-	facultyID := current.FacultyID
-	if input.FacultyID != nil {
-		if *input.FacultyID <= 0 {
-			facultyID = nil
-		} else {
-			facultyID = input.FacultyID
-		}
-	}
-
 	query := `
 		UPDATE users
-		SET email = $2, faculty_id = $3, updated_at = CURRENT_TIMESTAMP
+		SET email = $2, updated_at = CURRENT_TIMESTAMP
 		WHERE id = $1
 		RETURNING id, email, password_hash, role, faculty_id, is_banned, created_at, updated_at
 	`
 
 	var updated models.User
-	if err := r.db.Get(&updated, query, userID, email, facultyID); err != nil {
+	if err := r.db.Get(&updated, query, userID, email); err != nil {
 		return nil, err
 	}
 	return &updated, nil
+}
+
+func (r *Repository) UpdatePassword(userID int, passwordHash string) error {
+	result, err := r.db.Exec(`
+		UPDATE users
+		SET password_hash = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+	`, userID, passwordHash)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
 
 func (r *Repository) AdminUpdate(userID int, input models.AdminUpdateUserInput) (*models.User, error) {
@@ -89,7 +103,9 @@ func (r *Repository) AdminUpdate(userID int, input models.AdminUpdateUserInput) 
 	}
 
 	facultyID := current.FacultyID
-	if input.FacultyID != nil {
+	if role == "admin" {
+		facultyID = nil
+	} else if input.FacultyID != nil {
 		if *input.FacultyID <= 0 {
 			facultyID = nil
 		} else {

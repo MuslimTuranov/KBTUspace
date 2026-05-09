@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Globe, Building2, Pin, Pencil, Trash2, Flag, Loader2 } from 'lucide-react';
+import { ArrowLeft, Globe, Building2, Pin, Pencil, Trash2, Flag, Loader2, User } from 'lucide-react';
 import { format } from 'date-fns';
 import { getPost, deletePost, pinPost } from '../api/posts';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { useFacultyName } from '../hooks/useFaculties';
 import { useState } from 'react';
 import EditPostModal from '../components/EditPostModal';
 import ReportModal from '../components/ReportModal';
+import { assetUrl } from '../api/assets';
 
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -44,8 +45,11 @@ export default function PostDetailPage() {
           </div>
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">{post.title}</h1>
-        <p className="text-sm text-gray-400 mb-4">{format(new Date(post.created_at), 'MMMM d, yyyy · HH:mm')}</p>
-        {post.image_url && <img src={post.image_url} alt="" className="rounded-xl w-full mb-4 object-cover max-h-80" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-400 mb-4">
+          {post.author_email && <span className="flex items-center gap-1"><User className="w-4 h-4" />{post.author_email}</span>}
+          <span>{format(new Date(post.created_at), 'MMMM d, yyyy · HH:mm')}</span>
+        </div>
+        {post.image_url && <img src={assetUrl(post.image_url)} alt="" className="rounded-xl w-full mb-4 object-cover max-h-80" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
         <div className="text-gray-700 leading-relaxed whitespace-pre-wrap">{post.content}</div>
       </div>
       {showEdit && <EditPostModal post={post} onClose={() => setShowEdit(false)} />}

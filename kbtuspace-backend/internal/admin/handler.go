@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -106,9 +108,17 @@ func (h *Handler) ApprovePost(c *gin.Context) {
 	}
 
 	adminIDAny, _ := c.Get("userID")
-	adminID, _ := adminIDAny.(int)
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
 	if err := h.postService.Approve(id, adminID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global post not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve post"})
 		return
 	}
@@ -144,6 +154,10 @@ func (h *Handler) RejectPost(c *gin.Context) {
 	}
 
 	if err := h.postService.Reject(id, input.Reason); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global post not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject post"})
 		return
 	}
@@ -172,9 +186,17 @@ func (h *Handler) DeletePost(c *gin.Context) {
 	}
 
 	adminIDAny, _ := c.Get("userID")
-	adminID, _ := adminIDAny.(int)
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
 	if err := h.postService.Delete(id, adminID, "admin"); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Post not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete post"})
 		return
 	}
@@ -203,9 +225,17 @@ func (h *Handler) ApproveEvent(c *gin.Context) {
 	}
 
 	adminIDAny, _ := c.Get("userID")
-	adminID, _ := adminIDAny.(int)
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
 	if err := h.eventService.Approve(id, adminID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global event not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to approve event"})
 		return
 	}
@@ -241,6 +271,10 @@ func (h *Handler) RejectEvent(c *gin.Context) {
 	}
 
 	if err := h.eventService.Reject(id, input.Reason); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Pending global event not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reject event"})
 		return
 	}
@@ -269,9 +303,17 @@ func (h *Handler) DeleteEvent(c *gin.Context) {
 	}
 
 	adminIDAny, _ := c.Get("userID")
-	adminID, _ := adminIDAny.(int)
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
 
-	if err := h.eventService.Delete(id, "admin", &adminID); err != nil {
+	if err := h.eventService.Delete(id, adminID, "admin", nil); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete event"})
 		return
 	}

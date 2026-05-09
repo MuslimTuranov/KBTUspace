@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"kbtuspace-backend/internal/auth"
+	"kbtuspace-backend/internal/handlers"
 	"kbtuspace-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -94,7 +95,7 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 
 	var input models.UpdateProfileInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -102,6 +103,10 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	if err != nil {
 		if errors.Is(err, auth.ErrDuplicateEmail) {
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, auth.ErrInvalidEmailDomain) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		if errors.Is(err, auth.ErrUserNotFound) {
@@ -113,6 +118,36 @@ func (h *Handler) UpdateProfile(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var input models.ChangePasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
+		return
+	}
+
+	if err := h.service.ChangePassword(userID, input); err != nil {
+		if errors.Is(err, auth.ErrInvalidPassword) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Current password is incorrect"})
+			return
+		}
+		if errors.Is(err, auth.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to change password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password changed successfully"})
 }
 
 // AdminUpdateUser godoc
@@ -140,7 +175,7 @@ func (h *Handler) AdminUpdateUser(c *gin.Context) {
 
 	var input models.AdminUpdateUserInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 

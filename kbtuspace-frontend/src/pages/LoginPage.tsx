@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen } from 'lucide-react';
 import { login as loginApi } from '../api/auth';
+import { getApiErrorMessage } from '../api/errors';
 import { useAuth } from '../context/AuthContext';
 import { useState } from 'react';
 
@@ -18,7 +19,7 @@ export default function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     setApiError('');
     try { const res = await loginApi(values); await login(res.token); navigate('/'); }
-    catch (err: any) { setApiError(err.response?.data?.error || 'Invalid credentials'); }
+    catch (err: unknown) { setApiError(getApiErrorMessage(err, 'Invalid credentials')); }
   };
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">

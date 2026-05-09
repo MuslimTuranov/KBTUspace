@@ -5,13 +5,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { createPost } from '../api/posts';
+import { uploadImage } from '../api/uploads';
+import { getApiErrorMessage } from '../api/errors';
 import { useAuth } from '../context/AuthContext';
+import { useFaculties } from '../hooks/useFaculties';
 import Modal from './Modal';
+import { useState } from 'react';
 
 const schema = z.object({
-  title: z.string().min(3).max(255),
-  content: z.string().min(10).max(5000),
-  image_url: z.string().url().optional().or(z.literal('')),
+  title: z.string().min(3, 'Title must be at least 3 characters').max(255, 'Title must be at most 255 characters'),
+  content: z.string().min(10, 'Content must be at least 10 characters').max(5000, 'Content must be at most 5000 characters'),
   scope: z.enum(['faculty', 'global']),
 });
 type FormValues = z.infer<typeof schema>;
@@ -19,6 +22,9 @@ type FormValues = z.infer<typeof schema>;
 export default function CreatePostModal({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const [image, setImage] = useState<File | null>(null);
+  const { data: faculties } = useFaculties();
+  const [adminFacultyId, setAdminFacultyId] = useState<number | null>(null);
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -26,12 +32,14 @@ export default function CreatePostModal({ onClose }: { onClose: () => void }) {
   });
 
   const scope = useWatch({ control, name: 'scope' });
-  const noFaculty = !user?.faculty_id && scope === 'faculty';
-  const canGlobal = user?.role === 'organizer' || user?.role === 'admin';
+  const facultyID = user?.role === 'admin' ? adminFacultyId : user?.faculty_id;
+  const noFaculty = !facultyID && scope === 'faculty';
 
   const mut = useMutation({
-    mutationFn: (v: FormValues) =>
-      createPost({ ...v, image_url: v.image_url || undefined, faculty_id: user?.faculty_id ?? undefined }),
+    mutationFn: async (v: FormValues) => {
+      const imageUrl = image ? await uploadImage(image) : undefined;
+      return createPost({ ...v, image_url: imageUrl, faculty_id: facultyID ?? undefined });
+    },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['posts'] }); onClose(); },
   });
 
@@ -50,22 +58,29 @@ export default function CreatePostModal({ onClose }: { onClose: () => void }) {
           {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content.message}</p>}
         </div>
 
+        {user?.role === 'admin' && scope === 'faculty' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Faculty</label>
+            <select value={adminFacultyId ?? ''} onChange={(e) => setAdminFacultyId(e.target.value ? Number(e.target.value) : null)} className="input">
+              <option value="">Select faculty</option>
+              {faculties?.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+          </div>
+        )}
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Image URL (optional)</label>
-          <input {...register('image_url')} className="input" placeholder="https://..." />
-          {errors.image_url && <p className="text-xs text-red-500 mt-1">{errors.image_url.message}</p>}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Image (optional)</label>
+          <input type="file" accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => setImage(e.target.files?.[0] ?? null)} className="input" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Scope</label>
           <select {...register('scope')} className="input">
             <option value="faculty">Faculty only</option>
-            {canGlobal && (
-              <option value="global">Global (requires admin approval)</option>
-            )}
+            <option value="global">{user?.role === 'admin' ? 'Global' : 'Global (requires admin approval)'}</option>
           </select>
-          {!canGlobal && (
-            <p className="text-xs text-gray-400 mt-1">Only organizers and admins can post globally.</p>
+          {scope === 'global' && user?.role !== 'admin' && (
+            <p className="text-xs text-gray-400 mt-1">Global posts are reviewed by admins before publication.</p>
           )}
         </div>
 
@@ -73,17 +88,14 @@ export default function CreatePostModal({ onClose }: { onClose: () => void }) {
           <div className="flex gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
             <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>
-              You need a Faculty ID on your profile to post to faculty.{' '}
-              <Link to="/profile" onClick={onClose} className="font-medium underline underline-offset-2">
-                Set it now
-              </Link>
+              {user?.role === 'admin' ? 'Select a faculty to create a faculty post.' : <>You need a Faculty ID on your profile to post to faculty. <Link to="/profile" onClick={onClose} className="font-medium underline underline-offset-2">Set it now</Link></>}
             </span>
           </div>
         )}
 
         {mut.error && (
           <p className="text-sm text-red-500">
-            {(mut.error as any).response?.data?.error || 'Failed to create post'}
+            {getApiErrorMessage(mut.error, 'Failed to create post')}
           </p>
         )}
 

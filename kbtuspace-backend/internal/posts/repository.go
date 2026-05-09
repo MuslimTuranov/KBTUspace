@@ -43,42 +43,36 @@ func (r *Repository) GetAll(facultyID *int, role string, globalOnly bool) ([]mod
 	posts := []models.Post{}
 
 	baseQuery := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
 		WHERE event_date IS NULL
 		  AND status = 'approved'
 	`
 
 	if globalOnly {
-		baseQuery += " AND scope = 'global' ORDER BY is_pinned DESC, created_at DESC"
-		err := r.db.Select(&posts, baseQuery)
-		return posts, err
-	}
-
-	if role == "admin" {
-		baseQuery += " ORDER BY is_pinned DESC, created_at DESC"
+		baseQuery += " AND scope = 'global' ORDER BY p.is_pinned DESC, p.created_at DESC"
 		err := r.db.Select(&posts, baseQuery)
 		return posts, err
 	}
 
 	if facultyID != nil {
-		baseQuery += " AND (scope = 'global' OR faculty_id = $1) ORDER BY is_pinned DESC, created_at DESC"
+		baseQuery += " AND scope = 'faculty' AND p.faculty_id = $1 ORDER BY p.is_pinned DESC, p.created_at DESC"
 		err := r.db.Select(&posts, baseQuery, *facultyID)
 		return posts, err
 	}
 
-	baseQuery += " AND scope = 'global' ORDER BY is_pinned DESC, created_at DESC"
-	err := r.db.Select(&posts, baseQuery)
-	return posts, err
+	return posts, nil
 }
 
 func (r *Repository) GetByID(id int, includeUnapproved bool, actorFacultyID *int) (*models.Post, error) {
 	var post models.Post
 
 	query := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
-		WHERE id = $1 AND event_date IS NULL
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
+		WHERE p.id = $1 AND event_date IS NULL
 	`
 	if !includeUnapproved {
 		query += `
@@ -205,10 +199,11 @@ func (r *Repository) GetAuthorID(id int) (int, error) {
 func (r *Repository) ListPendingGlobal() ([]models.Post, error) {
 	posts := []models.Post{}
 	query := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
 		WHERE event_date IS NULL AND scope = 'global' AND status = 'pending'
-		ORDER BY created_at DESC
+		ORDER BY p.created_at DESC
 	`
 
 	err := r.db.Select(&posts, query)

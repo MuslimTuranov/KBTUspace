@@ -28,7 +28,7 @@ type CreateEventInput struct {
 	FacultyID   *int    `json:"faculty_id,omitempty"`
 	Title       string  `json:"title" binding:"required,min=3,max=255"`
 	Description string  `json:"description" binding:"required,min=10,max=5000"`
-	ImageURL    *string `json:"image_url" binding:"omitempty,url"`
+	ImageURL    *string `json:"image_url"`
 	EventDate   string  `json:"event_date" binding:"required"`
 	Location    string  `json:"location" binding:"required,min=3,max=255"`
 	Capacity    int     `json:"capacity" binding:"required,min=1,max=10000"`
@@ -39,7 +39,7 @@ type UpdateEventInput struct {
 	FacultyID   *int    `json:"faculty_id,omitempty"`
 	Title       string  `json:"title" binding:"required,min=3,max=255"`
 	Description string  `json:"description" binding:"required,min=10,max=5000"`
-	ImageURL    *string `json:"image_url" binding:"omitempty,url"`
+	ImageURL    *string `json:"image_url"`
 	EventDate   string  `json:"event_date" binding:"required"`
 	Location    string  `json:"location" binding:"required,min=3,max=255"`
 	Capacity    int     `json:"capacity" binding:"required,min=1,max=10000"`
@@ -50,7 +50,7 @@ type EventRegistration struct {
 	ID        int       `db:"id" json:"id"`
 	UserID    int       `db:"user_id" json:"user_id"`
 	EventID   int       `db:"event_id" json:"event_id"`
-	Status    string    `db:"status" json:"status"` // registered, cancelled, attended
+	Status    string    `db:"status" json:"status"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }

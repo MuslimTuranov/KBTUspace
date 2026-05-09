@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"strings"
 
 	"kbtuspace-backend/internal/models"
 	"kbtuspace-backend/pkg/hash"
@@ -20,9 +21,23 @@ func NewService(repo *Repository, jwtSecret []byte) *Service {
 	}
 }
 
+func ValidateKBTUEmail(email string) error {
+	if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(email)), "@kbtu.kz") {
+		return ErrInvalidEmailDomain
+	}
+	return nil
+}
+
 func (s *Service) RegisterUser(input models.RegisterInput) error {
 	if len(input.Email) == 0 || len(input.Password) == 0 {
 		return errors.New("email and password are required")
+	}
+
+	if err := ValidateKBTUEmail(input.Email); err != nil {
+		return err
+	}
+	if input.FacultyID == nil || *input.FacultyID <= 0 {
+		return ErrFacultyRequired
 	}
 
 	hashedPassword, err := hash.HashPassword(input.Password)

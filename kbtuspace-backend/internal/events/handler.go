@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"kbtuspace-backend/internal/handlers"
 	"kbtuspace-backend/internal/models"
 
 	"github.com/gin-gonic/gin"
@@ -36,7 +37,7 @@ func NewHandler(service *Service) *Handler {
 func (h *Handler) Create(c *gin.Context) {
 	var input models.CreateEventInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -69,6 +70,10 @@ func (h *Handler) Create(c *gin.Context) {
 		}
 		if errors.Is(err, ErrInvalidEventDate) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event_date. Supported formats: RFC3339, YYYY-MM-DD, DD.MM.YYYY"})
+			return
+		}
+		if errors.Is(err, ErrEventDateInPast) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Event date cannot be in the past"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create event"})
@@ -171,6 +176,13 @@ func (h *Handler) GetByID(c *gin.Context) {
 		return
 	}
 
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
 	var facultyID *int
 	if facultyIDAny, exists := c.Get("facultyID"); exists {
 		if value, ok := facultyIDAny.(int); ok {
@@ -178,7 +190,7 @@ func (h *Handler) GetByID(c *gin.Context) {
 		}
 	}
 
-	event, err := h.service.GetByID(id, role, facultyID)
+	event, err := h.service.GetByID(id, userID, role, facultyID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
@@ -216,7 +228,7 @@ func (h *Handler) Update(c *gin.Context) {
 
 	var input models.UpdateEventInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -227,6 +239,13 @@ func (h *Handler) Update(c *gin.Context) {
 		return
 	}
 
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
 	var facultyID *int
 	if facultyIDAny, exists := c.Get("facultyID"); exists {
 		if value, ok := facultyIDAny.(int); ok {
@@ -234,7 +253,7 @@ func (h *Handler) Update(c *gin.Context) {
 		}
 	}
 
-	err = h.service.Update(id, role, facultyID, input)
+	err = h.service.Update(id, userID, role, facultyID, input)
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "You can only manage events in your faculty"})
@@ -246,6 +265,10 @@ func (h *Handler) Update(c *gin.Context) {
 		}
 		if errors.Is(err, ErrInvalidEventDate) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid event_date. Supported formats: RFC3339, YYYY-MM-DD, DD.MM.YYYY"})
+			return
+		}
+		if errors.Is(err, ErrEventDateInPast) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Event date cannot be in the past"})
 			return
 		}
 		if err == sql.ErrNoRows {
@@ -287,6 +310,13 @@ func (h *Handler) Delete(c *gin.Context) {
 		return
 	}
 
+	userIDAny, _ := c.Get("userID")
+	userID, ok := userIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
 	var facultyID *int
 	if facultyIDAny, exists := c.Get("facultyID"); exists {
 		if value, ok := facultyIDAny.(int); ok {
@@ -294,7 +324,7 @@ func (h *Handler) Delete(c *gin.Context) {
 		}
 	}
 
-	err = h.service.Delete(id, role, facultyID)
+	err = h.service.Delete(id, userID, role, facultyID)
 	if err != nil {
 		if errors.Is(err, ErrForbidden) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "You can only manage events in your faculty"})
@@ -343,6 +373,13 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
+	roleAny, _ := c.Get("role")
+	role, ok := roleAny.(string)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid role"})
+		return
+	}
+
 	var facultyID *int
 	if facultyIDAny, exists := c.Get("facultyID"); exists {
 		if value, ok := facultyIDAny.(int); ok {
@@ -350,14 +387,14 @@ func (h *Handler) Register(c *gin.Context) {
 		}
 	}
 
-	err = h.service.Register(userID, id, facultyID)
+	err = h.service.Register(userID, id, role, facultyID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return
 		}
 		if errors.Is(err, ErrCrossFacultyAccess) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "You can register only for global or your faculty events"})
+			c.JSON(http.StatusForbidden, gin.H{"error": "You are not from this faculty"})
 			return
 		}
 		if errors.Is(err, ErrEventFull) {
@@ -570,7 +607,7 @@ func (h *Handler) Reject(c *gin.Context) {
 
 	var input models.RejectContentInput
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": handlers.ValidationMessage(err)})
 		return
 	}
 
@@ -605,7 +642,14 @@ func (h *Handler) AdminDelete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id, "admin", nil); err != nil {
+	adminIDAny, _ := c.Get("userID")
+	adminID, ok := adminIDAny.(int)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := h.service.Delete(id, adminID, "admin", nil); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Event not found"})
 			return

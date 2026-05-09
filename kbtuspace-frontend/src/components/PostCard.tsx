@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Pin, Globe, Building2, Flag, Trash2, Pencil } from 'lucide-react';
+import { Pin, Globe, Building2, Flag, Trash2, Pencil, User } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { deletePost, pinPost } from '../api/posts';
@@ -9,6 +9,7 @@ import { useFacultyName } from '../hooks/useFaculties';
 import type { Post } from '../types';
 import ReportModal from './ReportModal';
 import EditPostModal from './EditPostModal';
+import { assetUrl } from '../api/assets';
 
 export default function PostCard({ post }: { post: Post }) {
   const { user } = useAuth();
@@ -40,10 +41,13 @@ export default function PostCard({ post }: { post: Post }) {
         </div>
         <div>
           <Link to={`/posts/${post.id}`} className="text-base font-semibold text-gray-900 hover:text-blue-700 line-clamp-2">{post.title}</Link>
-          {post.image_url && <img src={post.image_url} alt="" className="mt-2 rounded-lg w-full h-48 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
+          {post.image_url && <img src={assetUrl(post.image_url)} alt="" className="mt-2 rounded-lg w-full h-48 object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />}
           <p className="mt-1 text-sm text-gray-600 line-clamp-3">{post.content}</p>
         </div>
-        <div className="text-xs text-gray-400">{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</div>
+        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
+          {post.author_email && <span className="flex items-center gap-1"><User className="w-3.5 h-3.5" />{post.author_email}</span>}
+          <span>{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+        </div>
       </div>
       {showReport && <ReportModal targetType="post" targetId={post.id} onClose={() => setShowReport(false)} />}
       {showEdit && <EditPostModal post={post} onClose={() => setShowEdit(false)} />}

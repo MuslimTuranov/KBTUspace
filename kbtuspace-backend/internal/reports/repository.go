@@ -1,6 +1,7 @@
 package reports
 
 import (
+	"context"
 	"database/sql"
 
 	"kbtuspace-backend/internal/models"
@@ -110,7 +111,7 @@ func (r *Repository) Close(id int, status, reviewNote string, adminID int) error
 	query := `
 		UPDATE reports
 		SET status = $2,
-			review_note = $3,
+			review_note = NULLIF($3, ''),
 			reviewed_by = $4,
 			reviewed_at = CURRENT_TIMESTAMP,
 			updated_at = CURRENT_TIMESTAMP
@@ -132,4 +133,71 @@ func (r *Repository) Close(id int, status, reviewNote string, adminID int) error
 	}
 
 	return nil
+}
+
+type ClosedReportTarget struct {
+	TargetPostID int    `db:"target_post_id"`
+	TargetType   string `db:"target_type"`
+}
+
+func (r *Repository) CloseAndDeleteTarget(id int, status, reviewNote string, adminID int) (*ClosedReportTarget, error) {
+	tx, err := r.db.BeginTxx(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	var target ClosedReportTarget
+	if err := tx.Get(&target, `
+		SELECT target_post_id, target_type
+		FROM reports
+		WHERE id = $1 AND status = 'pending'
+		FOR UPDATE
+	`, id); err != nil {
+		return nil, err
+	}
+
+	result, err := tx.Exec(`
+		UPDATE reports
+		SET status = $2,
+			review_note = NULLIF($3, ''),
+			reviewed_by = $4,
+			reviewed_at = CURRENT_TIMESTAMP,
+			updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1
+		  AND status = 'pending'
+	`, id, status, reviewNote, adminID)
+	if err != nil {
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rowsAffected == 0 {
+		return nil, sql.ErrNoRows
+	}
+
+	if status == models.ReportStatusClosed {
+		result, err = tx.Exec(`DELETE FROM posts WHERE id = $1`, target.TargetPostID)
+		if err != nil {
+			return nil, err
+		}
+		rowsAffected, err = result.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		if rowsAffected == 0 {
+			return nil, sql.ErrNoRows
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return &target, nil
 }

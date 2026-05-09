@@ -9,6 +9,7 @@ var (
 	ErrForbidden          = errors.New("forbidden")
 	ErrCrossFacultyAccess = errors.New("cross-faculty access is forbidden")
 	ErrInvalidEventDate   = errors.New("invalid event_date format")
+	ErrEventDateInPast    = errors.New("event_date cannot be in the past")
 	ErrFacultyRequired    = errors.New("faculty is required")
 	ErrApprovalPending    = errors.New("global content requires admin approval")
 )

@@ -1,16 +1,16 @@
 package models
 
 import (
+	"errors"
 	"log/slog"
 
+	"kbtuspace-backend/pkg/config"
 	"kbtuspace-backend/pkg/hash"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// SeedDefaults inserts a default admin user on first run if no admin exists.
-// Default credentials: admin@kbtu.kz / Admin1234!!
-func SeedDefaults(db *sqlx.DB) error {
+func SeedDefaults(db *sqlx.DB, cfg *config.Config) error {
 	var count int
 	if err := db.Get(&count, `SELECT COUNT(*) FROM users WHERE role = 'admin'`); err != nil {
 		return err
@@ -20,20 +20,29 @@ func SeedDefaults(db *sqlx.DB) error {
 		return nil
 	}
 
-	hashedPassword, err := hash.HashPassword("Admin1234!!")
+	adminPassword := cfg.DefaultAdminPassword
+	if adminPassword == "" {
+		if cfg.Environment == "production" {
+			return errors.New("DEFAULT_ADMIN_PASSWORD is required to seed the first admin in production")
+		}
+		slog.Warn("Default admin was not created because DEFAULT_ADMIN_PASSWORD is empty")
+		return nil
+	}
+
+	hashedPassword, err := hash.HashPassword(adminPassword)
 	if err != nil {
 		return err
 	}
 
 	_, err = db.Exec(`
 		INSERT INTO users (email, password_hash, role)
-		VALUES ('admin@kbtu.kz', $1, 'admin')
+		VALUES ($1, $2, 'admin')
 		ON CONFLICT (email) DO NOTHING
-	`, hashedPassword)
+	`, cfg.DefaultAdminEmail, hashedPassword)
 	if err != nil {
 		return err
 	}
 
-	slog.Info("Default admin created", slog.String("email", "admin@kbtu.kz"), slog.String("password", "Admin1234!!"))
+	slog.Info("Default admin created", slog.String("email", cfg.DefaultAdminEmail))
 	return nil
 }

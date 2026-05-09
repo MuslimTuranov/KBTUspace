@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"kbtuspace-backend/internal/models"
 
@@ -52,60 +53,48 @@ func (r *Repository) Create(event *models.Post) error {
 
 func (r *Repository) GetAll(facultyID *int, role string, globalOnly bool) ([]models.Post, error) {
 	events := []models.Post{}
+	cutoff := time.Now().AddDate(0, 0, -30)
 
 	baseQuery := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
 		WHERE event_date IS NOT NULL
 		  AND status = 'approved'
+		  AND event_date >= $1
 	`
 
 	if globalOnly {
-		baseQuery += " AND scope = 'global' ORDER BY event_date ASC"
-		err := r.db.Select(&events, baseQuery)
-		return events, err
-	}
-
-	if role == "admin" {
-		baseQuery += " ORDER BY event_date ASC"
-		err := r.db.Select(&events, baseQuery)
+		baseQuery += " AND scope = 'global' ORDER BY p.event_date ASC"
+		err := r.db.Select(&events, baseQuery, cutoff)
 		return events, err
 	}
 
 	if facultyID != nil {
-		baseQuery += " AND (scope = 'global' OR faculty_id = $1) ORDER BY event_date ASC"
-		err := r.db.Select(&events, baseQuery, *facultyID)
+		baseQuery += " AND scope = 'faculty' AND p.faculty_id = $2 ORDER BY p.event_date ASC"
+		err := r.db.Select(&events, baseQuery, cutoff, *facultyID)
 		return events, err
 	}
 
-	baseQuery += " AND scope = 'global' ORDER BY event_date ASC"
-	err := r.db.Select(&events, baseQuery)
-	return events, err
+	return events, nil
 }
 
 func (r *Repository) GetByID(id int, includeUnapproved bool, actorFacultyID *int) (*models.Post, error) {
 	var event models.Post
 
 	query := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
-		WHERE id = $1 AND event_date IS NOT NULL
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
+		WHERE p.id = $1 AND event_date IS NOT NULL
 	`
 	if !includeUnapproved {
 		query += `
 			AND status = 'approved'
-			AND (
-				scope = 'global'
-				OR (scope = 'faculty' AND $2 IS NOT NULL AND faculty_id = $2)
-			)
 		`
 	}
 
 	args := []interface{}{id}
-	if !includeUnapproved {
-		args = append(args, actorFacultyID)
-	}
-
 	err := r.db.Get(&event, query, args...)
 	if err != nil {
 		return nil, err
@@ -114,7 +103,7 @@ func (r *Repository) GetByID(id int, includeUnapproved bool, actorFacultyID *int
 	return &event, nil
 }
 
-func (r *Repository) Update(event *models.Post, isAdmin bool, actorFacultyID *int) error {
+func (r *Repository) Update(event *models.Post, actorID int, isAdmin bool, actorFacultyID *int) error {
 	query := `
 		WITH target AS (
 			SELECT 1
@@ -123,7 +112,7 @@ func (r *Repository) Update(event *models.Post, isAdmin bool, actorFacultyID *in
 		), updated AS (
 			UPDATE posts
 			SET faculty_id = $2, title = $3, content = $4, image_url = $5, is_pinned = $6, scope = $7, status = $8, approved_by = $9, approved_at = $10, rejection_reason = $11, event_date = $12, location = $13, capacity = $14, updated_at = CURRENT_TIMESTAMP
-			WHERE id = $1 AND event_date IS NOT NULL AND ($15 OR faculty_id = $16)
+			WHERE id = $1 AND event_date IS NOT NULL AND ($15 OR author_id = $16 OR faculty_id = $17)
 			RETURNING 1
 		)
 		SELECT CASE
@@ -152,6 +141,7 @@ func (r *Repository) Update(event *models.Post, isAdmin bool, actorFacultyID *in
 		event.Location,
 		event.Capacity,
 		isAdmin,
+		actorID,
 		actorFacultyID,
 	)
 	if err != nil {
@@ -168,7 +158,7 @@ func (r *Repository) Update(event *models.Post, isAdmin bool, actorFacultyID *in
 	}
 }
 
-func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
+func (r *Repository) Delete(id int, actorID int, isAdmin bool, actorFacultyID *int) error {
 	query := `
 		WITH target AS (
 			SELECT 1
@@ -176,7 +166,7 @@ func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
 			WHERE id = $1 AND event_date IS NOT NULL
 		), deleted AS (
 			DELETE FROM posts
-			WHERE id = $1 AND event_date IS NOT NULL AND ($2 OR faculty_id = $3)
+			WHERE id = $1 AND event_date IS NOT NULL AND ($2 OR author_id = $3 OR faculty_id = $4)
 			RETURNING 1
 		)
 		SELECT CASE
@@ -187,7 +177,7 @@ func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
 	`
 
 	var status string
-	err := r.db.Get(&status, query, id, isAdmin, actorFacultyID)
+	err := r.db.Get(&status, query, id, isAdmin, actorID, actorFacultyID)
 	if err != nil {
 		return err
 	}
@@ -202,7 +192,7 @@ func (r *Repository) Delete(id int, isAdmin bool, actorFacultyID *int) error {
 	}
 }
 
-func (r *Repository) Register(userID int, eventID int, actorFacultyID *int) error {
+func (r *Repository) Register(userID int, eventID int, actorFacultyID *int, isAdmin bool) error {
 	tx, err := r.db.BeginTxx(context.Background(), nil)
 	if err != nil {
 		return err
@@ -235,7 +225,7 @@ func (r *Repository) Register(userID int, eventID int, actorFacultyID *int) erro
 		return ErrEventFull
 	}
 
-	if event.Scope == models.ContentScopeFaculty {
+	if event.Scope == models.ContentScopeFaculty && !isAdmin {
 		if actorFacultyID == nil || event.FacultyID == nil || *actorFacultyID != *event.FacultyID {
 			return ErrCrossFacultyAccess
 		}
@@ -355,6 +345,20 @@ func (r *Repository) MarkAttended(userID, eventID int) error {
 	return nil
 }
 
+func (r *Repository) IsUserRegistered(userID, eventID int) (bool, error) {
+	var registered bool
+	err := r.db.Get(&registered, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM registrations
+			WHERE user_id = $1
+			  AND event_id = $2
+			  AND status = 'registered'
+		)
+	`, userID, eventID)
+	return registered, err
+}
+
 func (r *Repository) GetEventAccessMeta(eventID int) (*EventAccessMeta, error) {
 	var meta EventAccessMeta
 	if err := r.db.Get(&meta, `
@@ -370,10 +374,11 @@ func (r *Repository) GetEventAccessMeta(eventID int) (*EventAccessMeta, error) {
 func (r *Repository) ListPendingGlobal() ([]models.Post, error) {
 	events := []models.Post{}
 	query := `
-		SELECT id, author_id, faculty_id, title, content, image_url, is_pinned, scope, status, approved_by, approved_at, rejection_reason, event_date, location, capacity, current_count, created_at, updated_at
-		FROM posts
+		SELECT p.id, p.author_id, u.email AS author_email, p.faculty_id, p.title, p.content, p.image_url, p.is_pinned, p.scope, p.status, p.approved_by, p.approved_at, p.rejection_reason, p.event_date, p.location, p.capacity, p.current_count, p.created_at, p.updated_at
+		FROM posts p
+		JOIN users u ON u.id = p.author_id
 		WHERE event_date IS NOT NULL AND scope = 'global' AND status = 'pending'
-		ORDER BY created_at DESC
+		ORDER BY p.created_at DESC
 	`
 
 	err := r.db.Select(&events, query)
