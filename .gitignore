@@ -35,5 +35,5 @@ go.work.sum
 
 .npm-cache
 
-uploads/
-kbtuspace-backend/uploads/
+/uploads/
+/kbtuspace-backend/uploads/
