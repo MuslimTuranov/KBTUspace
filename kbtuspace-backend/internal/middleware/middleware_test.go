@@ -329,3 +329,5 @@ func TestCORSMiddlewareRejectedOrigin(t *testing.T) {
 		t.Fatal("rejected origin should not be allowed")
 	}
 }
+
+//
