@@ -67,9 +67,9 @@ function ContentModerationTab() {
           <p className="text-xs text-gray-400 mt-1">{format(new Date(item.created_at), 'MMM d, yyyy HH:mm')}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button onClick={() => approveMut.mutate({ type, id: item.id })} disabled={approveMut.isPending} className="btn-ghost p-2 text-green-600 hover:bg-green-50"><CheckCircle className="w-5 h-5" /></button>
-          <button onClick={() => setRejectTarget({ type, id: item.id })} className="btn-ghost p-2 text-red-500 hover:bg-red-50"><XCircle className="w-5 h-5" /></button>
-          <button onClick={() => { if (confirm('Delete permanently?')) deleteMut.mutate({ type, id: item.id }); }} className="btn-ghost p-2 text-gray-400"><Trash2 className="w-5 h-5" /></button>
+          <button aria-label="Approve" onClick={() => approveMut.mutate({ type, id: item.id })} disabled={approveMut.isPending} className="btn-ghost p-2 text-green-600 hover:bg-green-50"><CheckCircle className="w-5 h-5 lucide-check-circle" /></button>
+          <button aria-label="Reject item" onClick={() => setRejectTarget({ type, id: item.id })} className="btn-ghost p-2 text-red-500 hover:bg-red-50"><XCircle className="w-5 h-5 lucide-x-circle" /></button>
+          <button aria-label="Delete" onClick={() => { if (confirm('Delete permanently?')) deleteMut.mutate({ type, id: item.id }); }} className="btn-ghost p-2 text-gray-400"><Trash2 className="w-5 h-5" /></button>
         </div>
       </div>
     </div>

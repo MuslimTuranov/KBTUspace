@@ -74,8 +74,8 @@ export default function CreatePostModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Scope</label>
-          <select {...register('scope')} className="input">
+          <label htmlFor="post-scope" className="block text-sm font-medium text-gray-700 mb-1">Scope</label>
+          <select id="post-scope" {...register('scope')} className="input">
             <option value="faculty">Faculty only</option>
             <option value="global">{user?.role === 'admin' ? 'Global' : 'Global (requires admin approval)'}</option>
           </select>

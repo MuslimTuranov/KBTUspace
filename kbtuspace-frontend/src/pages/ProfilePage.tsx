@@ -60,9 +60,9 @@ export default function ProfilePage() {
       <div className="card p-6">
         <h2 className="text-base font-semibold text-gray-900 mb-4">Change Password</h2>
         <form onSubmit={handleSubmit((v) => mut.mutate(v))} className="space-y-4">
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Current password</label><input {...register('current_password')} type="password" className="input" />{errors.current_password && <p className="text-xs text-red-500 mt-1">{errors.current_password.message}</p>}</div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">New password</label><input {...register('new_password')} type="password" className="input" />{errors.new_password && <p className="text-xs text-red-500 mt-1">{errors.new_password.message}</p>}</div>
-          <div><label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label><input {...register('confirm_password')} type="password" className="input" />{errors.confirm_password && <p className="text-xs text-red-500 mt-1">{errors.confirm_password.message}</p>}</div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Current password</label><input {...register('current_password')} type="password" role="textbox" className="input" />{errors.current_password && <p className="text-xs text-red-500 mt-1">{errors.current_password.message}</p>}</div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">New password</label><input {...register('new_password')} type="password" role="textbox" className="input" />{errors.new_password && <p className="text-xs text-red-500 mt-1">{errors.new_password.message}</p>}</div>
+          <div><label className="block text-sm font-medium text-gray-700 mb-1">Confirm new password</label><input {...register('confirm_password')} type="password" role="textbox" className="input" />{errors.confirm_password && <p className="text-xs text-red-500 mt-1">{errors.confirm_password.message}</p>}</div>
           {mut.error && <p className="text-sm text-red-500">{getApiErrorMessage(mut.error, 'Update failed')}</p>}
           {saved && <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-600">Password changed successfully!</div>}
           <button type="submit" disabled={isSubmitting || mut.isPending} className="btn-primary"><Lock className="w-4 h-4" />{mut.isPending ? 'Saving...' : 'Change Password'}</button>

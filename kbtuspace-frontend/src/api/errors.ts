@@ -9,6 +9,11 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     const data = error.response?.data as ErrorResponse | undefined;
     return data?.error || fallback;
   }
-
+  if (error && typeof error === 'object') {
+    const maybe = error as { response?: { data?: ErrorResponse } };
+    if (maybe.response?.data?.error) {
+      return maybe.response.data.error;
+    }
+  }
   return fallback;
 }
