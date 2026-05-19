@@ -952,4 +952,55 @@ func TestCacheGetByIDUsesCacheOnlyIfAccessAllowed(t *testing.T) {
 	})
 }
 
+// TestRedisUnavailableFallback verifies that the service works correctly when
+// the cache client is nil — which is what happens in production when Redis is
+// unavailable (cache.NewRedisCache returns an error and cacheClient is set to nil).
+func TestRedisUnavailableFallback(t *testing.T) {
+	t.Run("GetAll falls back to DB when cache is nil", func(t *testing.T) {
+		// nil cache = Redis unavailable scenario
+		service, mock, cleanup := setupPostsTest(t, nil)
+		defer cleanup()
+
+		facultyID := 1
+		now := time.Now()
+
+		rows := postRows()
+		addPostRow(rows, 1, 10, facultyID, false, models.ContentScopeFaculty, models.ContentStatusApproved, now)
+
+		mock.ExpectQuery(`SELECT p.id, p.author_id`).
+			WillReturnRows(rows)
+
+		posts, err := service.GetAll(&facultyID, "student", false)
+		if err != nil {
+			t.Fatalf("expected no error with nil cache, got: %v", err)
+		}
+		if len(posts) != 1 {
+			t.Fatalf("expected 1 post, got %d", len(posts))
+		}
+	})
+
+	t.Run("Create succeeds and does not panic with nil cache", func(t *testing.T) {
+		service, mock, cleanup := setupPostsTest(t, nil)
+		defer cleanup()
+
+		actorFacultyID := 1
+
+		mock.ExpectQuery(`INSERT INTO posts`).
+			WillReturnRows(sqlmock.NewRows([]string{"id", "created_at", "updated_at"}).
+				AddRow(42, time.Now(), time.Now()))
+
+		post, err := service.Create(10, "student", &actorFacultyID, models.CreatePostInput{
+			Title:   "Test Post",
+			Content: "Content for the test",
+			Scope:   models.ContentScopeFaculty,
+		})
+		if err != nil {
+			t.Fatalf("expected no error with nil cache, got: %v", err)
+		}
+		if post.ID != 42 {
+			t.Fatalf("expected post ID 42, got %d", post.ID)
+		}
+	})
+}
+
 //

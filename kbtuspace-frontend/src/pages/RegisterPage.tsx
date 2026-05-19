@@ -41,7 +41,7 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-bold text-gray-900">Create an account</h1>
           <p className="text-gray-500 mt-1">Join the UniHub community</p>
         </div>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form noValidate onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
             <input {...register('email')} type="email" className="input" placeholder="you@kbtu.kz" />
