@@ -37,3 +37,7 @@ go.work.sum
 
 /uploads/
 /kbtuspace-backend/uploads/
+
+# Playwright artifacts
+/kbtuspace-frontend/playwright-report/
+/kbtuspace-frontend/test-results/

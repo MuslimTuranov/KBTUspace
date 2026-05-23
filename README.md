@@ -125,6 +125,23 @@ npm.cmd run build
 
 On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
+End-to-end tests:
+
+```powershell
+docker compose up --build
+cd kbtuspace-frontend
+npm.cmd install
+npx.cmd playwright install
+$env:E2E_ADMIN_PASSWORD = "<same value as DEFAULT_ADMIN_PASSWORD>"
+npm.cmd run test:e2e
+```
+
+Optional e2e variables:
+
+- `E2E_BASE_URL` defaults to a Vite dev server started by Playwright.
+- `E2E_API_URL` defaults to `http://127.0.0.1:8080/api/v1`.
+- `E2E_ADMIN_EMAIL` defaults to `admin@kbtu.kz`.
+
 ## Notes
 
-Reports record moderation decisions only. Closing a report does not delete or reject the reported post/event; admins must use moderation/delete actions separately when needed.
+Reports record moderation decisions. Rejecting a report keeps the content, while closing a report deletes the reported post or event.
